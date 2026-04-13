@@ -65,6 +65,12 @@ const testTheme: RenderTheme = {
   bg: (_color, value) => value,
 };
 
+const taggedTheme: RenderTheme = {
+  bold: (value) => value,
+  fg: (color, value) => `<${color}>${value}</${color}>`,
+  bg: (color, value) => `<bg:${color}>${value}</bg:${color}>`,
+};
+
 initTheme("dark");
 
 describe("pi extension", () => {
@@ -168,6 +174,12 @@ describe("pi extension", () => {
           text: [
             "> URL: https://example.com/article",
             "> Title: Example Article",
+            "> Published: 2026-04-10",
+            "> Author: Ada Lovelace",
+            "> Site: Example",
+            "> Language: en",
+            "> Words: 321",
+            "> Browser: chrome_145/windows",
             "",
             "# Example Article",
             "Line 1",
@@ -191,7 +203,7 @@ describe("pi extension", () => {
           finalUrl: "https://example.com/article",
           title: "Example Article",
           author: "",
-          published: "",
+          published: "2026-04-10",
           site: "Example",
           language: "en",
           wordCount: 321,
@@ -218,7 +230,13 @@ describe("pi extension", () => {
       .render(120);
     const collapsedText = collapsedLines?.join("\n") ?? "";
     expect(collapsedText).toContain("Title: Example Article");
-    expect(collapsedText).toContain("URL: https://example.com/article");
+    expect(collapsedText).toContain("Published: 2026-04-10");
+    expect(collapsedText).not.toContain("URL: https://example.com/article");
+    expect(collapsedText).not.toContain("Author: Ada Lovelace");
+    expect(collapsedText).not.toContain("Site: Example");
+    expect(collapsedText).not.toContain("Language: en");
+    expect(collapsedText).not.toContain("Words: 321");
+    expect(collapsedText).not.toContain("Browser: chrome_145/windows");
     expect(collapsedText).toContain("Example Article");
     expect(collapsedText).toContain("Line 6");
     expect(collapsedText).not.toContain("Line 8");
@@ -230,8 +248,66 @@ describe("pi extension", () => {
       .render(120);
     const expandedText = expandedLines?.join("\n") ?? "";
     expect(expandedText).toContain("Title: Example Article");
+    expect(expandedText).toContain("Published: 2026-04-10");
+    expect(expandedText).not.toContain("URL: https://example.com/article");
+    expect(expandedText).not.toContain("Author: Ada Lovelace");
     expect(expandedText).toContain("Example Article");
     expect(expandedText).toContain("Line 9");
+  });
+
+  it("renders user-facing metadata with YAML-like key and string colors", () => {
+    const registeredTool = findTool("web_fetch");
+    expect(registeredTool.renderResult).toBeDefined();
+
+    const result = {
+      content: [
+        {
+          type: "text",
+          text: [
+            "> URL: https://example.com/article",
+            "> Title: Example Article",
+            "> Published: 2026-04-10",
+            "> Author: Ada Lovelace",
+            "> Site: Example",
+            "> Language: en",
+            "> Words: 321",
+            "> Browser: chrome_145/windows",
+            "",
+            "# Example Article",
+          ].join("\n"),
+        },
+      ],
+      details: {
+        verbose: false,
+        format: "markdown",
+        maxChars: 50000,
+        fetchResult: {
+          url: "https://example.com/article",
+          finalUrl: "https://example.com/article",
+          title: "Example Article",
+          author: "Ada Lovelace",
+          published: "2026-04-10",
+          site: "Example",
+          language: "en",
+          wordCount: 321,
+          content: "# Example Article",
+          browser: "chrome_145",
+          os: "windows",
+        },
+      },
+    };
+
+    const collapsedLines = registeredTool
+      .renderResult?.(result, { expanded: false }, taggedTheme)
+      .render(120);
+    const collapsedText = collapsedLines?.join("\n") ?? "";
+
+    expect(collapsedText).toContain(
+      "<syntaxKeyword>Title: </syntaxKeyword><syntaxString>Example Article</syntaxString>",
+    );
+    expect(collapsedText).toContain(
+      "<syntaxKeyword>Published: </syntaxKeyword><syntaxString>2026-04-10</syntaxString>",
+    );
   });
 
   it("renders descriptive fetch errors instead of the generic no-result fallback", () => {

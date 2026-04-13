@@ -26,7 +26,7 @@ OpenClaw plugin, registers `smart_fetch` and `batch_smart_fetch` alongside the b
 - **attachment and binary download support** for `Content-Disposition: attachment` and non-text content types, streamed into temp files instead of being forced through Defuddle
 - **sanitized temp-file naming** derived from `Content-Disposition`, URL path segments, or UUID fallback, with deburring and extension normalization
 - **consumer-provided temp directories** so pi/OpenClaw can control where downloaded files land
-- **pi-specific behavior** including an optional `verbose` flag, richer TUI rendering, and defaults from pi settings
+- **pi-specific behavior** including full metadata for agents, a brief history preview for users, richer TUI rendering, and defaults from pi settings
 - **publish-ready workspace tooling** with broader unit coverage, typechecking, build checks, and pack-install smoke tests
 - **lower overhead than browser automation** when you do not need JS execution, login, scrolling, or clicks
 - **clear limits**: it does not execute JavaScript or solve interactive anti-bot flows

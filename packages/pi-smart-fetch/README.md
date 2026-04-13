@@ -17,7 +17,7 @@ Compared with naive Node.js `fetch()`, this package gives you:
 - **useful metadata** like title, author, published date, site, and language when available
 - **multiple output formats**: `markdown`, `html`, `text`, or `json`
 - **single and batch tools**: `web_fetch` for one URL, `batch_web_fetch` for many
-- **pi-specific behavior** including an optional `verbose` flag and defaults from pi settings
+- **pi-specific behavior** including full metadata for agents, a compact history preview for users, and defaults from pi settings
 - **bounded batch fan-out** with a configurable default concurrency of `8`
 - **a richer pi TUI for batch mode** with per-item rows, truncated URLs, statuses, small progress bars, and timer-driven spinner animation
 - **attachment and binary download support** when a response is an attachment or non-text payload
@@ -69,18 +69,15 @@ For `batch_web_fetch`, `requests` is an array of objects, and **each item accept
 
 ### `web_fetch`
 
-By default, the tool returns a compact response containing non-empty:
-- URL
-- Title
-- Author
-- Published
-- content
+Agent-facing tool output always includes the full non-empty metadata header plus the extracted document body.
 
-Set `verbose: true` to include fuller metadata such as:
-- site
-- language
-- word count
-- browser profile info
+In the pi TUI backlog/history preview, user-facing metadata is intentionally brief and only shows:
+- Title
+- Published
+
+The duplicated `URL:` line is hidden from the preview because the tool call line already shows the URL.
+
+The optional `verbose` flag is retained for compatibility, but pi now always returns the full metadata header to the agent.
 
 ### `batch_web_fetch`
 
@@ -99,21 +96,7 @@ In the pi TUI, batch mode also streams per-item progress rows showing:
 
 ## Example tool outputs
 
-### Compact `web_fetch` output (default)
-
-```text
-> URL: https://example.com/blog/some-article
-> Title: Some Article
-> Author: Jane Doe
-> Published: 2026-03-12
-
-# Some Article
-
-This is the cleaned readable content extracted from the page.
-It omits most navigation, footer, and unrelated chrome.
-```
-
-### Verbose `web_fetch` output (`verbose: true`)
+### Agent-facing `web_fetch` output
 
 ```text
 > URL: https://example.com/blog/some-article
@@ -128,7 +111,20 @@ It omits most navigation, footer, and unrelated chrome.
 # Some Article
 
 This is the cleaned readable content extracted from the page.
-It includes the same body content, but with a richer metadata header.
+It includes the body plus the full metadata header available to the agent.
+```
+
+### pi history/backlog preview for `web_fetch`
+
+```text
+web_fetch https://example.com/blog/some-article
+Title: Some Article
+Published: 2026-03-12
+
+# Some Article
+
+This is the cleaned readable content extracted from the page.
+... (more lines, Ctrl+O to expand)
 ```
 
 ### Attachment/binary `web_fetch` output
@@ -185,14 +181,14 @@ Error: Invalid URL: not-a-url
 | `removeImages`    | boolean                       | `false`         | Strip image references from output                                           |
 | `includeReplies`  | boolean \| `extractors`       | `extractors`    | Include replies/comments                                                     |
 | `proxy`           | string                        | none            | Proxy URL                                                                    |
-| `verbose`         | boolean                       | `false`         | Include the full metadata header. Can default from `smartFetchVerboseByDefault` |
+| `verbose`         | boolean                       | `false`         | Compatibility flag. pi currently returns the full metadata header to the agent regardless; user history preview stays compact |
 
 ### `batch_web_fetch`
 
 | Parameter   | Type                | Default   | Description |
 |-------------|---------------------|-----------|-------------|
 | `requests`  | array of objects    | required  | Array of fetch requests. Each item accepts the same parameters as `web_fetch` except `verbose` |
-| `verbose`   | boolean             | `false`   | Include the full metadata header for each successful result |
+| `verbose`   | boolean             | `false`   | Compatibility flag. pi currently returns the full metadata header for successful results regardless |
 
 ## pi settings
 
@@ -213,7 +209,7 @@ Optional custom settings in `~/.pi/agent/settings.json` or `.pi/settings.json`:
 ```
 
 Behavior:
-- `smartFetchVerboseByDefault` sets the default for `verbose`
+- `smartFetchVerboseByDefault` sets the stored default for the compatibility `verbose` flag
 - `smartFetchDefaultMaxChars` sets the runtime default for `maxChars`
 - `smartFetchDefaultTimeoutMs` sets the runtime request timeout
 - `smartFetchDefaultBrowser` sets the default browser fingerprint profile

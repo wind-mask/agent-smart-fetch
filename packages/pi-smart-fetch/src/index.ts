@@ -29,14 +29,14 @@ import { loadPiSmartFetchSettings } from "./settings";
 const toolDescription = [
   "Fetch a URL with browser-grade TLS fingerprinting and extract clean, readable content.",
   "Uses wreq-js for browser-like TLS/HTTP2 impersonation and Defuddle for article extraction.",
-  "Supports the same fetch parameters as the OpenClaw tool, plus an optional verbose flag.",
+  "Returns full metadata plus the extracted document to the agent while keeping the pi history preview brief.",
   "Does NOT execute JavaScript — use a browser automation tool for JS-heavy pages.",
 ].join(" ");
 
 const batchToolDescription = [
   "Fetch multiple URLs with browser-grade TLS fingerprinting and readable extraction.",
   "Each request accepts the same parameters as web_fetch and fans out with bounded concurrency.",
-  "Streams per-item progress in the pi TUI with truncated URLs, statuses, and small progress bars.",
+  "Returns full per-item metadata to the agent and streams compact per-item progress in the pi TUI.",
   "Does NOT execute JavaScript — use a browser automation tool for JS-heavy pages.",
 ].join(" ");
 
@@ -222,6 +222,19 @@ function renderBatchProgressText(
   return [summary, ...rows].join("\n");
 }
 
+function renderUserMetadataLine(
+  label: string,
+  value: string | number,
+  theme: {
+    fg(color: string, value: string): string;
+  },
+): string {
+  return (
+    theme.fg("syntaxKeyword", `${label}: `) +
+    theme.fg("syntaxString", String(value))
+  );
+}
+
 function buildWebFetchMetadataLines(
   details: WebFetchRenderDetails,
   theme: {
@@ -233,28 +246,18 @@ function buildWebFetchMetadataLines(
     return [];
   }
 
-  const metadata: Array<[label: string, value: string | number | undefined]> =
-    details.verbose
-      ? [
-          ["URL", fetchResult.finalUrl],
-          ["Title", fetchResult.title],
-          ["Author", fetchResult.author],
-          ["Published", fetchResult.published],
-          ["Site", fetchResult.site],
-          ["Language", fetchResult.language],
-          ["Words", fetchResult.wordCount],
-          ["Browser", `${fetchResult.browser}/${fetchResult.os}`],
-        ]
-      : [
-          ["URL", fetchResult.finalUrl],
-          ["Title", fetchResult.title],
-          ["Author", fetchResult.author],
-          ["Published", fetchResult.published],
-        ];
+  const metadata: Array<[label: string, value: string | number | undefined]> = [
+    ["Title", fetchResult.title],
+    ["Published", fetchResult.published],
+  ];
 
-  return metadata
-    .filter(([, value]) => value !== undefined && value !== "")
-    .map(([label, value]) => theme.fg("accent", `${label}: ${value}`));
+  return metadata.flatMap(([label, value]) => {
+    if (value === undefined || value === "") {
+      return [];
+    }
+
+    return [renderUserMetadataLine(label, value, theme)];
+  });
 }
 
 function shouldRenderHighlightedContent(format?: OutputFormat) {
@@ -472,13 +475,13 @@ export default function piSmartFetchExtension(pi: ExtensionAPI) {
     label: "web_fetch",
     description: toolDescription,
     promptSnippet:
-      "web_fetch(url, browser?, os?, headers?, maxChars?, timeoutMs?, format?, removeImages?, includeReplies?, proxy?, verbose?): fetch browser-fingerprinted readable web content",
+      "web_fetch(url, browser?, os?, headers?, maxChars?, timeoutMs?, format?, removeImages?, includeReplies?, proxy?, verbose?): fetch browser-fingerprinted readable web content with full agent metadata and a compact pi preview",
     parameters: Type.Object({
       ...createBaseFetchToolParameterProperties(defaults),
       verbose: Type.Optional(
         Type.Boolean({
           description:
-            "Include the full metadata header (site, language, word count, browser fingerprint info). Default: false, or smartFetchVerboseByDefault from pi settings.",
+            "Compatibility flag. pi currently returns the full metadata header to the agent regardless, while keeping the history preview compact. Default: false, or smartFetchVerboseByDefault from pi settings.",
         }),
       ),
     }),
@@ -580,7 +583,10 @@ export default function piSmartFetchExtension(pi: ExtensionAPI) {
 
         return {
           content: [
-            { type: "text", text: buildFetchResponseText(result, { verbose }) },
+            {
+              type: "text",
+              text: buildFetchResponseText(result, { verbose: true }),
+            },
           ],
           details: {
             verbose,
@@ -663,13 +669,13 @@ export default function piSmartFetchExtension(pi: ExtensionAPI) {
     label: "batch_web_fetch",
     description: batchToolDescription,
     promptSnippet:
-      "batch_web_fetch(requests, verbose?): fetch multiple URLs concurrently with per-item progress in the pi TUI",
+      "batch_web_fetch(requests, verbose?): fetch multiple URLs concurrently with full agent metadata and per-item progress in the pi TUI",
     parameters: Type.Object({
       ...createBatchFetchToolParameterProperties(defaults),
       verbose: Type.Optional(
         Type.Boolean({
           description:
-            "Include the full metadata header for each successful result. Default: false, or smartFetchVerboseByDefault from pi settings.",
+            "Compatibility flag. pi currently returns the full metadata header for successful results regardless, while keeping the history preview compact. Default: false, or smartFetchVerboseByDefault from pi settings.",
         }),
       ),
     }),
@@ -744,7 +750,9 @@ export default function piSmartFetchExtension(pi: ExtensionAPI) {
           content: [
             {
               type: "text",
-              text: buildBatchFetchResponseText(batchResult, { verbose }),
+              text: buildBatchFetchResponseText(batchResult, {
+                verbose: true,
+              }),
             },
           ],
           details: {
