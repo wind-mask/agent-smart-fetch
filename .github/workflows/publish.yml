@@ -64,31 +64,22 @@ jobs:
           SELECTED_PACKAGE: ${{ github.event.inputs.package || 'all' }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
-          publish_pkg() {
-            local pkg="$1"
-            if [ "$DRY_RUN" = "true" ]; then
-              bun publish --workspace "$pkg" --access public --dry-run
-            else
-              bun publish --workspace "$pkg" --access public
-            fi
-          }
-
           if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
-            publish_pkg pi-smart-fetch
-            publish_pkg openclaw-smart-fetch
+            cd packages/pi-smart-fetch && bun publish --access public ${{ env.DRY_RUN == 'true' && '--dry-run' || '' }}
+            cd packages/openclaw-smart-fetch && bun publish --access public ${{ env.DRY_RUN == 'true' && '--dry-run' || '' }}
             exit 0
           fi
 
           case "$SELECTED_PACKAGE" in
             all)
-              publish_pkg pi-smart-fetch
-              publish_pkg openclaw-smart-fetch
+              cd packages/pi-smart-fetch && bun publish --access public ${{ env.DRY_RUN == 'true' && '--dry-run' || '' }}
+              cd packages/openclaw-smart-fetch && bun publish --access public ${{ env.DRY_RUN == 'true' && '--dry-run' || '' }}
               ;;
             pi)
-              publish_pkg pi-smart-fetch
+              cd packages/pi-smart-fetch && bun publish --access public ${{ env.DRY_RUN == 'true' && '--dry-run' || '' }}
               ;;
             openclaw)
-              publish_pkg openclaw-smart-fetch
+              cd packages/openclaw-smart-fetch && bun publish --access public ${{ env.DRY_RUN == 'true' && '--dry-run' || '' }}
               ;;
             *)
               echo "Unknown package selection: $SELECTED_PACKAGE" >&2
