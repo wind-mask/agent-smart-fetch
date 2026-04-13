@@ -39,6 +39,12 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Setup Node for npm auth
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          registry-url: https://registry.npmjs.org
+
       - name: Install dependencies
         run: bun install
 
@@ -58,33 +64,32 @@ jobs:
       - name: Package dry runs
         run: bun run pack:dry-run:all
 
-      - name: Setup npm auth
-        uses: actions/setup-node@v5
-        with:
-          node-version: '20'
-          registry-url: https://registry.npmjs.org
-
       - name: Publish selected package(s)
         env:
           SELECTED_PACKAGE: ${{ github.event.inputs.package || 'all' }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
+          PUBLISH_CMD="npx npm publish --access public --provenance"
+          if [ "${DRY_RUN}" = "true" ]; then
+            PUBLISH_CMD="$PUBLISH_CMD --dry-run"
+          fi
+
           if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
-            cd packages/pi-smart-fetch && npx npm publish --access public ${{ env.DRY_RUN == 'true' && '--dry-run' || '' }}
-            cd ../openclaw-smart-fetch && npx npm publish --access public ${{ env.DRY_RUN == 'true' && '--dry-run' || '' }}
+            cd packages/pi-smart-fetch && $PUBLISH_CMD
+            cd ../openclaw-smart-fetch && $PUBLISH_CMD
             exit 0
           fi
 
           case "$SELECTED_PACKAGE" in
             all)
-              cd packages/pi-smart-fetch && npx npm publish --access public ${{ env.DRY_RUN == 'true' && '--dry-run' || '' }}
-              cd ../openclaw-smart-fetch && npx npm publish --access public ${{ env.DRY_RUN == 'true' && '--dry-run' || '' }}
+              cd packages/pi-smart-fetch && $PUBLISH_CMD
+              cd ../openclaw-smart-fetch && $PUBLISH_CMD
               ;;
             pi)
-              cd packages/pi-smart-fetch && npx npm publish --access public ${{ env.DRY_RUN == 'true' && '--dry-run' || '' }}
+              cd packages/pi-smart-fetch && $PUBLISH_CMD
               ;;
             openclaw)
-              cd packages/openclaw-smart-fetch && npx npm publish --access public ${{ env.DRY_RUN == 'true' && '--dry-run' || '' }}
+              cd packages/openclaw-smart-fetch && $PUBLISH_CMD
               ;;
             *)
               echo "Unknown package selection: $SELECTED_PACKAGE" >&2
