@@ -74,6 +74,9 @@ jobs:
       - name: Package dry runs
         run: bun run pack:dry-run:all
 
+      # Keep npm publish here even though the repo is Bun-first.
+      # npm Trusted Publishing for this repo is wired to npm publish + provenance,
+      # and this workflow shape is the known-good path.
       - name: Publish selected package(s)
         env:
           NPM_CONFIG_PROVENANCE: true

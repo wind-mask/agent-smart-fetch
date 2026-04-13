@@ -1,30 +1,58 @@
 # pi-smart-fetch
 
-`pi-smart-fetch` adds adaptive, agent-friendly web fetching tools to pi.dev.
+`pi-smart-fetch` adds smarter web fetching tools to pi.dev.
 
-![pi Smart Fetch](demo.gif)
-
-Registers 2 tools:
+It registers:
 - `web_fetch`
 - `batch_web_fetch`
 
-## Features
+![pi Smart Fetch](demo.gif)
 
-Compared with naive Node.js `fetch()`, this package gives you:
-- **browser-like transport fingerprints** via Thinkscape's maintained `@thinkscape/wreq-js` fork, which helps on sites that inspect TLS and HTTP client behavior
-- **clean readable extraction** via `Defuddle`, so agents get article content instead of raw noisy HTML
-- **better success on bot-defended pages** where plain server-side requests are blocked, challenged, or degraded
-- **useful metadata** like title, author, published date, site, and language when available
-- **multiple output formats**: `markdown`, `html`, `text`, or `json`
-- **single and batch tools**: `web_fetch` for one URL, `batch_web_fetch` for many
-- **pi-specific behavior** including full metadata for agents, a compact history preview for users, and defaults from pi settings
-- **bounded batch fan-out** with a configurable default concurrency of `8`
-- **a richer pi TUI for batch mode** with per-item rows, truncated URLs, statuses, small progress bars, and timer-driven spinner animation
-- **attachment and binary download support** when a response is an attachment or non-text payload
-- **temp-file output** with sanitized filenames plus returned file metadata (`URL`, `File size`, `Mime type`, `File path`)
-- **publish-ready packaging/test workflow** across the monorepo for safer releases
-- **lower overhead than browser automation** when you do not need JS execution, login, scrolling, or clicks
-- **clear limits**: it does not execute JavaScript or solve interactive anti-bot flows
+## Why use it
+
+Use this when plain server-side `fetch()` is too brittle or too noisy.
+
+It combines:
+- browser-like transport fingerprints via Thinkscape's maintained `@thinkscape/wreq-js` fork
+- Defuddle for readable extraction and richer page metadata
+
+## Highlights
+
+### Fetching
+- Browser-like transport fingerprints for better results on bot-defended sites
+- Lower overhead than browser automation when you do not need JS execution
+- Single-URL and batch fetching tools
+- Bounded batch concurrency with a default of `8`
+- pi-specific output shaping and TUI behavior
+
+### Extraction
+- Defuddle turns noisy pages into readable article-style content
+- Removes common chrome such as nav, sidebars, footers, share widgets, and similar clutter
+- Can include site-specific replies/comments when supported
+- Returns `markdown`, `html`, `text`, or `json`
+
+### Metadata and files
+- Extracts useful metadata like title, author, site, published date, language, and word count when available
+- Handles attachment and binary responses by saving them to temp files instead of forcing text extraction
+- Returns file metadata such as path, size, and MIME type
+
+### Practical limits
+- Does not execute JavaScript
+- Does not solve interactive anti-bot or login flows
+- Use browser automation when you need clicks, scrolling, form submission, or a live session
+
+## How Defuddle helps
+
+Defuddle is what makes the output easier for agents to use.
+
+Typical improvements:
+- Reddit posts/comments: cleaner readable text with less surrounding UI noise
+- X/Twitter posts: better readability and metadata than raw page HTML usually provides
+- docs, blogs, and article pages: the main content is easier to summarize without wasting tokens on chrome
+- noisy sites in general: sidebars, related links, comments rails, headers, and footers are often stripped away
+- metadata extraction: title, author, date, site, language, and similar fields are surfaced when available
+
+This is especially useful when a page is fetchable but the raw HTML is a poor input for an agent.
 
 ## Install
 
@@ -41,62 +69,55 @@ gh repo clone Thinkscape/agent-smart-fetch
 pi install agent-smart-fetch/packages/pi-smart-fetch
 ```
 
-## Use cases
+## Core use cases
 
 Use `web_fetch` when you want to:
-- fetch one article, doc page, or blog post with a browser-like network fingerprint
-- analyze readable content instead of raw HTML
-- reduce agent token waste on noisy page chrome
-- get author/title/published metadata when available
-- work around pages that reject ordinary server-side fetches
+- fetch one page with a browser-like network fingerprint
+- turn an article, doc page, Reddit thread, or X post into readable content
+- reduce token waste from noisy page chrome
+- keep useful metadata with the content
+- handle attachment or binary responses cleanly
 
 Use `batch_web_fetch` when you want to:
-- fetch multiple URLs in one tool call
-- preserve a clear mapping between each input URL and its result
-- let pi show per-item progress while the batch runs
-- collect a mix of successes and failures without losing per-item errors
+- fetch many URLs in one tool call
+- keep results mapped to input order
+- collect mixed successes and failures without losing per-item errors
+- let pi show per-item batch progress in the TUI
 
 ## Tool synopsis
 
 ```text
-web_fetch(url, browser?, os?, headers?, maxChars?, format?, removeImages?, includeReplies?, proxy?, verbose?)
+web_fetch(url, browser?, os?, headers?, maxChars?, timeoutMs?, format?, removeImages?, includeReplies?, proxy?, verbose?)
 batch_web_fetch(requests, verbose?)
 ```
 
-For `batch_web_fetch`, `requests` is an array of objects, and **each item accepts the same parameters as `web_fetch` except `verbose`**.
+For `batch_web_fetch`, `requests` is an array of objects, and each item accepts the same parameters as `web_fetch` except `verbose`.
 
 ## Output behavior
 
 ### `web_fetch`
 
-Agent-facing tool output always includes the full non-empty metadata header plus the extracted document body.
+Agent-facing output includes the full non-empty metadata header plus the extracted body.
 
-In the pi TUI backlog/history preview, user-facing metadata is intentionally brief and only shows:
+In the pi history/backlog preview, metadata stays intentionally brief:
 - Title
 - Published
 
-The duplicated `URL:` line is hidden from the preview because the tool call line already shows the URL.
-
-The optional `verbose` flag is retained for compatibility, but pi now always returns the full metadata header to the agent.
+The optional `verbose` flag remains for compatibility, but pi currently returns the full metadata header to the agent either way.
 
 ### `batch_web_fetch`
 
 Batch output:
-- starts with a batch summary (`Requests`, `Succeeded`, `Failed`, `Concurrency`)
+- starts with a summary (`Requests`, `Succeeded`, `Failed`, `Concurrency`)
 - keeps results in input order
-- labels each item with its ordinal and URL
 - includes full content for successful items
-- includes a bot-friendly `Error:` line for failed items
+- includes a clear `Error:` line for failures
 
-In the pi TUI, batch mode also streams per-item progress rows showing:
-- a small spinner/check/error glyph
-- a truncated URL
-- a one-word status (`queued`, `fetching`, `extracting`, `done`, `error`)
-- a small progress bar
+In the pi TUI, batch mode also streams per-item progress rows.
 
-## Example tool outputs
+## Example outputs
 
-### Agent-facing `web_fetch` output
+### `web_fetch`
 
 ```text
 > URL: https://example.com/blog/some-article
@@ -111,23 +132,9 @@ In the pi TUI, batch mode also streams per-item progress rows showing:
 # Some Article
 
 This is the cleaned readable content extracted from the page.
-It includes the body plus the full metadata header available to the agent.
 ```
 
-### pi history/backlog preview for `web_fetch`
-
-```text
-web_fetch https://example.com/blog/some-article
-Title: Some Article
-Published: 2026-03-12
-
-# Some Article
-
-This is the cleaned readable content extracted from the page.
-... (more lines, Ctrl+O to expand)
-```
-
-### Attachment/binary `web_fetch` output
+### Attachment or binary output
 
 ```text
 > URL: https://example.com/download/report
@@ -136,7 +143,7 @@ This is the cleaned readable content extracted from the page.
 > File path: /absolute/path/to/temp/report.pdf
 ```
 
-### `batch_web_fetch` output
+### `batch_web_fetch`
 
 ```text
 > Requests: 2
@@ -160,39 +167,34 @@ This is the cleaned readable content extracted from the page.
 > Error: HTTP 403 Forbidden for https://blocked.example/post
 ```
 
-### Error output
-
-```text
-Error: Invalid URL: not-a-url
-```
-
 ## Parameters
 
 ### `web_fetch`
 
-| Parameter         | Type                          | Default         | Description                                                                  |
-|-------------------|-------------------------------|-----------------|------------------------------------------------------------------------------|
-| `url`             | string                        | required        | URL to fetch                                                                 |
-| `browser`         | string                        | `chrome_145`    | Browser profile used for transport fingerprinting                            |
-| `os`              | string                        | `windows`       | OS profile: `windows`, `macos`, `linux`, `android`, `ios`                   |
-| `headers`         | object                        | auto            | Extra request headers                                                        |
-| `maxChars`        | number                        | `50000`         | Maximum returned characters. Can be overridden by pi settings                |
-| `format`          | `markdown` \| `html` \| `text` \| `json` | `markdown`      | Output format                                                                |
-| `removeImages`    | boolean                       | `false`         | Strip image references from output                                           |
-| `includeReplies`  | boolean \| `extractors`       | `extractors`    | Include replies/comments                                                     |
-| `proxy`           | string                        | none            | Proxy URL                                                                    |
-| `verbose`         | boolean                       | `false`         | Compatibility flag. pi currently returns the full metadata header to the agent regardless; user history preview stays compact |
+| Parameter | Type | Default | Description |
+|---|---|---:|---|
+| `url` | string | required | URL to fetch |
+| `browser` | string | `chrome_145` | Browser profile used for transport fingerprinting |
+| `os` | string | `windows` | OS profile: `windows`, `macos`, `linux`, `android`, `ios` |
+| `headers` | object | auto | Extra request headers |
+| `maxChars` | number | `50000` | Maximum returned characters |
+| `timeoutMs` | number | `15000` | Request timeout in milliseconds |
+| `format` | `markdown` \| `html` \| `text` \| `json` | `markdown` | Output format |
+| `removeImages` | boolean | `false` | Strip image references from output |
+| `includeReplies` | boolean \| `extractors` | `extractors` | Include replies/comments |
+| `proxy` | string | none | Proxy URL |
+| `verbose` | boolean | `false` | Compatibility flag; full metadata is still returned to the agent |
 
 ### `batch_web_fetch`
 
-| Parameter   | Type                | Default   | Description |
-|-------------|---------------------|-----------|-------------|
-| `requests`  | array of objects    | required  | Array of fetch requests. Each item accepts the same parameters as `web_fetch` except `verbose` |
-| `verbose`   | boolean             | `false`   | Compatibility flag. pi currently returns the full metadata header for successful results regardless |
+| Parameter | Type | Default | Description |
+|---|---|---:|---|
+| `requests` | array of objects | required | Array of fetch requests; each item accepts the same parameters as `web_fetch` except `verbose` |
+| `verbose` | boolean | `false` | Compatibility flag for batch output |
 
 ## pi settings
 
-Optional custom settings in `~/.pi/agent/settings.json` or `.pi/settings.json`:
+Optional settings in `~/.pi/agent/settings.json` or `.pi/settings.json`:
 
 ```json
 {
@@ -208,37 +210,21 @@ Optional custom settings in `~/.pi/agent/settings.json` or `.pi/settings.json`:
 }
 ```
 
-Behavior:
-- `smartFetchVerboseByDefault` sets the stored default for the compatibility `verbose` flag
-- `smartFetchDefaultMaxChars` sets the runtime default for `maxChars`
-- `smartFetchDefaultTimeoutMs` sets the runtime request timeout
-- `smartFetchDefaultBrowser` sets the default browser fingerprint profile
-- `smartFetchDefaultOs` sets the default OS fingerprint profile
-- `smartFetchDefaultRemoveImages` sets the default for image stripping
-- `smartFetchDefaultIncludeReplies` sets the default replies/comments behavior
-- `smartFetchDefaultBatchConcurrency` sets the default bounded concurrency for `batch_web_fetch`
-- `smartFetchTempDir` sets the base temp directory used for attachments and binary downloads
+Notes:
 - project `.pi/settings.json` overrides global `~/.pi/agent/settings.json`
-
-Legacy aliases still supported:
-- `webFetchVerboseByDefault`
-- `webFetchDefaultMaxChars`
-- `webFetchDefaultBatchConcurrency`
-- `webFetchTempDir`
+- legacy `webFetch*` aliases are still supported
+- `smartFetchTempDir` controls where attachment and binary downloads are written
 
 ## When not to use it
 
 Do not use these tools when:
 - the site requires JS rendering
-- you need login/session flows
-- you need to click, scroll, or submit forms
+- you need login or session flows
+- you need clicks, scrolling, or form submission
 - you need a fully interactive browser session
 
-In those cases, switch to browser automation.
+In those cases, use browser automation instead.
 
-## Recent feature additions reflected here
+## Dev and publishing note
 
-Recent `feat:` work added:
-- publish-ready TS tooling, tests, and packaging checks
-- timer-driven spinner animation for batch progress in the pi TUI
-- attachment and binary streaming into temp files with sanitized output paths
+This repo uses Bun for local development, tests, and workspace scripts. Package publishing still goes through npm in CI so npm Trusted Publishing can be used.

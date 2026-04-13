@@ -1,52 +1,64 @@
 # openclaw-smart-fetch
 
-`openclaw-smart-fetch` adds smarter fetching tools for OpenClaw.
+`openclaw-smart-fetch` adds smarter fetching tools to OpenClaw.
 
 It registers:
 - `smart_fetch`
 - `batch_smart_fetch`
 
+OpenClaw keeps separate tool names here instead of replacing its built-in `web_fetch`.
+
+## Why use it
+
+Use this when the built-in `web_fetch` is not enough.
+
 It combines:
-- `@thinkscape/wreq-js` for browser-like transport fingerprints
-- `Defuddle` for readable content extraction
+- browser-like transport fingerprints via Thinkscape's maintained `@thinkscape/wreq-js` fork
+- Defuddle for readable extraction and richer page metadata
 
-## Why use this instead of OpenClaw's built-in `web_fetch`
+## Highlights
 
-Use this package when the built-in `web_fetch` is not enough.
+### Fetching
+- Browser-like transport fingerprints for better results on bot-defended sites
+- Lower overhead than browser automation when you do not need JS execution
+- Single-URL and batch fetching tools
+- Bounded batch concurrency with a default of `8`
 
-Typical advantages:
-- **better resistance to bot detection** on sites that inspect TLS/HTTP client fingerprints
-- **more browser-like transport behavior** instead of a generic server-side HTTP client
-- **cleaner extracted content** instead of raw or noisy page output
-- **better article/document readability** for downstream agent analysis
-- **useful metadata** like title, author, published date, site, and language when available
-- **batch fan-out support** when you want to fetch multiple URLs in one tool call
-- **attachment and binary download support** when a server returns `Content-Disposition: attachment` or a non-text content type
-- **temp-file output** with sanitized filenames and file metadata instead of trying to render binary bytes as page text
+### Extraction
+- Defuddle turns noisy pages into readable article-style content
+- Removes common chrome such as nav, sidebars, footers, share widgets, and similar clutter
+- Can include site-specific replies/comments when supported
+- Returns `markdown`, `html`, `text`, or `json`
 
-A good rule of thumb:
-- use built-in `web_fetch` for simple pages
+### Metadata and files
+- Extracts useful metadata like title, author, site, published date, language, and word count when available
+- Handles attachment and binary responses by saving them to temp files instead of forcing text extraction
+- Returns file metadata such as path, size, and MIME type
+
+### Practical limits
+- Does not execute JavaScript
+- Does not solve interactive anti-bot or login flows
+- Use browser automation when you need clicks, scrolling, form submission, or a live session
+
+## How Defuddle helps
+
+Defuddle is what makes the output easier for downstream agents and tools to use.
+
+Typical improvements:
+- Reddit posts/comments: cleaner readable text with less surrounding UI noise
+- X/Twitter posts: better readability and metadata than raw page HTML usually provides
+- docs, blogs, and article pages: the main content is easier to summarize without wasting tokens on chrome
+- noisy sites in general: sidebars, related links, comments rails, headers, and footers are often stripped away
+- metadata extraction: title, author, date, site, language, and similar fields are surfaced when available
+
+This is especially useful when a page is fetchable but the raw HTML is a poor input for an agent.
+
+## Built-in `web_fetch` vs `smart_fetch`
+
+A practical rule of thumb:
+- use OpenClaw's built-in `web_fetch` for simple pages
 - use `smart_fetch` when pages are blocked, noisy, or extraction quality matters
-- use `batch_smart_fetch` when you need the same smarter fetch behavior over many URLs at once
-
-## Bot-detection focus
-
-These tools are aimed at sites that detect bots through:
-- TLS/client fingerprinting
-- transport/header inconsistencies
-- non-browser HTTP behavior
-
-They do **not** execute JavaScript or solve interactive anti-bot flows.
-
-If a page requires JS execution, login, scrolling, or clicking, use browser automation instead.
-
-## What tools it exposes
-
-This package registers:
-- `smart_fetch`
-- `batch_smart_fetch`
-
-OpenClaw keeps separate tool names because overriding/hoisting built-in `web_fetch` is not the desired path here.
+- use `batch_smart_fetch` when you need the same smarter fetch behavior over many URLs
 
 ## Install
 
@@ -62,29 +74,29 @@ From a local checkout:
 openclaw plugins install -l /absolute/path/to/agent-smart-fetch/packages/openclaw-smart-fetch
 ```
 
-## Use cases
+## Core use cases
 
 Use `smart_fetch` when you want to:
-- fetch pages that reject naive HTTP clients
-- extract the readable body from articles, docs, and blog posts
-- reduce noise before passing content to an agent
-- preserve page metadata for summarization or research
-- use browser-like fetching without paying the cost of full browser automation
+- fetch one page with a browser-like network fingerprint
+- turn an article, doc page, Reddit thread, or X post into readable content
+- reduce token waste from noisy page chrome
+- keep useful metadata with the content
+- handle attachment or binary responses cleanly
 
 Use `batch_smart_fetch` when you want to:
-- fetch multiple URLs in one tool call
-- preserve a clear mapping between each input URL and its result
-- keep full content for successes while retaining per-item error strings for failures
+- fetch many URLs in one tool call
+- keep results mapped to input order
+- collect mixed successes and failures without losing per-item errors
 - run bounded-concurrency fetches instead of firing everything at once
 
 ## Tool synopsis
 
 ```text
-smart_fetch(url, browser?, os?, headers?, maxChars?, format?, removeImages?, includeReplies?, proxy?)
+smart_fetch(url, browser?, os?, headers?, maxChars?, timeoutMs?, format?, removeImages?, includeReplies?, proxy?)
 batch_smart_fetch(requests)
 ```
 
-For `batch_smart_fetch`, `requests` is an array of objects, and **each item accepts the same parameters as `smart_fetch`**.
+For `batch_smart_fetch`, `requests` is an array of objects, and each item accepts the same parameters as `smart_fetch`.
 
 ## Example output
 
@@ -105,7 +117,7 @@ For `batch_smart_fetch`, `requests` is an array of objects, and **each item acce
 This is the cleaned readable content extracted from the page.
 ```
 
-### `smart_fetch` attachment/binary output
+### Attachment or binary output
 
 ```text
 > URL: https://example.com/download/report
@@ -146,29 +158,30 @@ This is the cleaned readable content extracted from the page.
 
 ### `smart_fetch`
 
-| Parameter         | Type                          | Default         | Description                                               |
-|-------------------|-------------------------------|-----------------|-----------------------------------------------------------|
-| `url`             | string                        | required        | URL to fetch                                              |
-| `browser`         | string                        | `chrome_145`    | Browser profile used for transport fingerprinting         |
-| `os`              | string                        | `windows`       | OS profile: `windows`, `macos`, `linux`, `android`, `ios` |
-| `headers`         | object                        | auto            | Extra request headers                                     |
-| `maxChars`        | number                        | `50000`         | Maximum returned characters                               |
-| `format`          | `markdown` \| `html` \| `text` \| `json` | `markdown`      | Output format                                             |
-| `removeImages`    | boolean                       | `false`         | Strip image references from output                        |
-| `includeReplies`  | boolean \| `extractors`       | `extractors`    | Include replies/comments                                  |
-| `proxy`           | string                        | none            | Proxy URL                                                 |
+| Parameter | Type | Default | Description |
+|---|---|---:|---|
+| `url` | string | required | URL to fetch |
+| `browser` | string | `chrome_145` | Browser profile used for transport fingerprinting |
+| `os` | string | `windows` | OS profile: `windows`, `macos`, `linux`, `android`, `ios` |
+| `headers` | object | auto | Extra request headers |
+| `maxChars` | number | `50000` | Maximum returned characters |
+| `timeoutMs` | number | `15000` | Request timeout in milliseconds |
+| `format` | `markdown` \| `html` \| `text` \| `json` | `markdown` | Output format |
+| `removeImages` | boolean | `false` | Strip image references from output |
+| `includeReplies` | boolean \| `extractors` | `extractors` | Include replies/comments |
+| `proxy` | string | none | Proxy URL |
 
 ### `batch_smart_fetch`
 
-| Parameter   | Type             | Default   | Description |
-|-------------|------------------|-----------|-------------|
-| `requests`  | array of objects | required  | Array of fetch requests. Each item accepts the same parameters as `smart_fetch` |
+| Parameter | Type | Default | Description |
+|---|---|---:|---|
+| `requests` | array of objects | required | Array of fetch requests; each item accepts the same parameters as `smart_fetch` |
 
 ## OpenClaw config
 
-See `openclaw.plugin.json` for plugin config defaults and schema.
+See `openclaw.plugin.json` for config defaults and schema.
 
-Configurable defaults include:
+Key options:
 - `maxChars`
 - `timeoutMs`
 - `browser`
@@ -178,23 +191,20 @@ Configurable defaults include:
 - `batchConcurrency`
 - `tempDir`
 
-`batchConcurrency` defaults to `8` and controls how many `batch_smart_fetch` requests run concurrently.
-
-`tempDir` lets the OpenClaw consumer choose where attachment/binary downloads are written before the tool returns their absolute file paths.
+Notes:
+- `batchConcurrency` defaults to `8`
+- `tempDir` controls where attachment and binary downloads are written before absolute file paths are returned
 
 ## When not to use it
 
 Do not use these tools when:
 - the page requires JS rendering
-- you need login/session flows
+- you need login or session flows
 - you need clicks, scrolling, or form submission
-- a full browser session is required
+- you need a fully interactive browser session
 
 In those cases, use browser automation instead.
 
-## Recent feature additions reflected here
+## Dev and publishing note
 
-Recent `feat:` work added:
-- publish-ready TS/test/build packaging workflow across the monorepo
-- richer animated batch progress behavior in pi-facing consumers
-- attachment and binary download streaming with sanitized temp-file output
+This repo uses Bun for local development, tests, and workspace scripts. Package publishing still goes through npm in CI so npm Trusted Publishing can be used.

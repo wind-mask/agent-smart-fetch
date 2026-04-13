@@ -2,52 +2,94 @@
 
 Better web fetching for agents.
 
-## [Smart Fetch for pi.dev](./packages/pi-smart-fetch/README.md)
+This monorepo contains two public packages that wrap browser-like transport fingerprints with Defuddle-powered content extraction:
 
-Registers `web_fetch` and `batch_web_fetch` tools.
-
-## [Smart Fetch for OpenClaw](./packages/openclaw-smart-fetch/README.md)
-
-OpenClaw plugin, registers `smart_fetch` and `batch_smart_fetch` alongside the built-in `web_fetch` tool.
+- [`pi-smart-fetch`](./packages/pi-smart-fetch/README.md) for pi.dev
+- [`openclaw-smart-fetch`](./packages/openclaw-smart-fetch/README.md) for OpenClaw
 
 ![pi Smart Fetch](packages/pi-smart-fetch/demo.gif)
 
-## Features
+## What it does
 
-- **browser-like transport fingerprints** via Thinkscape's maintained `@thinkscape/wreq-js` fork, which helps on sites that inspect TLS and HTTP client behavior
-- **clean readable extraction** via `Defuddle`, so agents get article content instead of raw noisy HTML
-- **better success on bot-defended pages** where plain server-side requests are blocked, challenged, or degraded
-- **useful metadata** like title, author, published date, site, and language when available
-- **multiple output formats**: `markdown`, `html`, `text`, or `json`
-- **single and batch tools**: `web_fetch` for one URL, `batch_web_fetch` for many
-- **bounded batch fan-out** with a configurable default concurrency of `8`
-- **request-phase progress support** wired through the core so richer transport events from the Thinkscape `wreq-js` fork can feed weighted progress updates
-- **animated pi batch progress** with timer-driven spinner refreshes and weighted per-item progress
-- **attachment and binary download support** for `Content-Disposition: attachment` and non-text content types, streamed into temp files instead of being forced through Defuddle
-- **sanitized temp-file naming** derived from `Content-Disposition`, URL path segments, or UUID fallback, with deburring and extension normalization
-- **consumer-provided temp directories** so pi/OpenClaw can control where downloaded files land
-- **pi-specific behavior** including full metadata for agents, a brief history preview for users, richer TUI rendering, and defaults from pi settings
-- **publish-ready workspace tooling** with broader unit coverage, typechecking, build checks, and pack-install smoke tests
-- **lower overhead than browser automation** when you do not need JS execution, login, scrolling, or clicks
-- **clear limits**: it does not execute JavaScript or solve interactive anti-bot flows
+Agent Smart Fetch is for pages where plain server-side `fetch()` is not enough.
 
-## Recent feature additions
+It combines:
+- browser-like TLS and HTTP fingerprints via Thinkscape's maintained `@thinkscape/wreq-js` fork
+- Defuddle for readable extraction and richer page metadata
 
-Recent `feat:` work in this repo added:
-- **attachment + binary streaming** via temp files with file metadata returned to the caller
-- **animated batch spinner updates in the pi TUI** so long-running batches continue to feel alive
-- **publish-ready TypeScript/tooling/test infrastructure** across the monorepo
+That makes it useful for:
+- docs, blog posts, articles, and knowledge-base pages
+- Reddit posts and comments when you want a readable text view instead of noisy page chrome
+- X/Twitter posts where extraction quality and metadata matter more than raw HTML
+- pages with heavy sidebars, nav, share widgets, comment rails, and other clutter
+- bot-defended sites that degrade or block generic HTTP clients
 
+## Shared highlights
+
+Across both public packages, the core experience is the same:
+
+### Fetching
+- Browser-like transport fingerprints for better results on bot-defended sites
+- Lower overhead than browser automation when you do not need JS execution
+- Single-URL and batch fetching tools
+- Bounded batch concurrency
+
+### Extraction
+- Defuddle turns noisy pages into readable article-style content
+- Removes common chrome such as nav, sidebars, footers, share widgets, and similar clutter
+- Can include site-specific replies/comments when supported
+- Returns `markdown`, `html`, `text`, or `json`
+
+### Metadata and files
+- Extracts useful metadata like title, author, site, published date, language, and word count when available
+- Handles attachment and binary responses by saving them to temp files instead of forcing text extraction
+- Returns file metadata for downloads and attachments
+
+### Practical limits
+- Does not execute JavaScript
+- Does not solve interactive anti-bot or login flows
+- Use browser automation when you need clicks, scrolling, form submission, or a live session
+
+## Why Defuddle helps
+
+Defuddle is the cleanup layer in this project.
+
+In practice, that means:
+- Reddit: better extraction of post text and comment threads, with less UI noise
+- X/Twitter: cleaner readable output and metadata than raw page HTML usually provides
+- docs/blog/article pages: the main content is easier to pass to an agent without wasting tokens on headers, sidebars, related links, or footer junk
+- general readability: content comes back in a form that is easier to summarize, quote, or search
+- metadata extraction: title, author, date, site, language, and other fields are surfaced when available
+
+It is especially helpful when the source page is technically fetchable but messy.
+
+## Packages
+
+### [pi-smart-fetch](./packages/pi-smart-fetch/README.md)
+
+Registers:
+- `web_fetch`
+- `batch_web_fetch`
+
+Use it when you want Smart Fetch integrated directly into pi.dev, including pi-specific output formatting and TUI behavior.
+
+### [openclaw-smart-fetch](./packages/openclaw-smart-fetch/README.md)
+
+Registers:
+- `smart_fetch`
+- `batch_smart_fetch`
+
+Use it when you want the same fetching and extraction behavior in OpenClaw without replacing its built-in `web_fetch` tool.
 
 ## Monorepo commands
 
-Install everything:
+Install dependencies:
 
 ```bash
 bun install
 ```
 
-Run everything:
+Run the full workspace:
 
 ```bash
 bun run test
@@ -97,18 +139,15 @@ Create a release commit and tag:
 bun run release
 ```
 
-Manual local publish with your npm login:
+Local manual publish commands:
 
 ```bash
 bun run publish:pi
 bun run publish:openclaw
-```
-
-Publish both published packages:
-
-```bash
 bun run publish:all
 ```
+
+Note: day-to-day development in this repo uses Bun, but package publishing still goes through `npm publish` in CI so npm Trusted Publishing can be used.
 
 ## Repository
 
