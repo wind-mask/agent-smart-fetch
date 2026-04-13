@@ -39,11 +39,21 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Setup Node for npm auth
+      - name: Setup Node
         uses: actions/setup-node@v5
         with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
+      - name: Verify publish toolchain
+        run: |
+          node --version
+          npm --version
+          bun --version
+          node -e "const { execSync } = require('node:child_process'); const [major, minor, patch] = execSync('npm --version', { encoding: 'utf8' }).trim().split('.').map(Number); if (major < 11 || (major === 11 && (minor < 5 || (minor === 5 && patch < 1)))) throw new Error('npm 11.5.1+ required for Trusted Publishing');"
 
       - name: Install dependencies
         run: bun install
@@ -66,30 +76,35 @@ jobs:
 
       - name: Publish selected package(s)
         env:
+          NPM_CONFIG_PROVENANCE: true
           SELECTED_PACKAGE: ${{ github.event.inputs.package || 'all' }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
-          PUBLISH_CMD="npx npm publish --access public"
-          if [ "${DRY_RUN}" = "true" ]; then
-            PUBLISH_CMD="$PUBLISH_CMD --dry-run"
-          fi
+          publish_cmd() {
+            local workspace="$1"
+            if [ "$DRY_RUN" = "true" ]; then
+              npm publish --workspace "$workspace" --access public --provenance --dry-run
+            else
+              npm publish --workspace "$workspace" --access public --provenance
+            fi
+          }
 
           if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
-            cd packages/pi-smart-fetch && $PUBLISH_CMD
-            cd ../openclaw-smart-fetch && $PUBLISH_CMD
+            publish_cmd packages/pi-smart-fetch
+            publish_cmd packages/openclaw-smart-fetch
             exit 0
           fi
 
           case "$SELECTED_PACKAGE" in
             all)
-              cd packages/pi-smart-fetch && $PUBLISH_CMD
-              cd ../openclaw-smart-fetch && $PUBLISH_CMD
+              publish_cmd packages/pi-smart-fetch
+              publish_cmd packages/openclaw-smart-fetch
               ;;
             pi)
-              cd packages/pi-smart-fetch && $PUBLISH_CMD
+              publish_cmd packages/pi-smart-fetch
               ;;
             openclaw)
-              cd packages/openclaw-smart-fetch && $PUBLISH_CMD
+              publish_cmd packages/openclaw-smart-fetch
               ;;
             *)
               echo "Unknown package selection: $SELECTED_PACKAGE" >&2
