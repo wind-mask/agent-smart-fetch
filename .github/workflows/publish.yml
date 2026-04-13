@@ -64,31 +64,31 @@ jobs:
           SELECTED_PACKAGE: ${{ github.event.inputs.package || 'all' }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
-          publish_cmd() {
-            local workspace="$1"
+          publish_pkg() {
+            local pkg="$1"
             if [ "$DRY_RUN" = "true" ]; then
-              bun publish --workspace "$workspace" --access public --dry-run
+              bun publish --workspace "$pkg" --access public --dry-run
             else
-              bun publish --workspace "$workspace" --access public
+              bun publish --workspace "$pkg" --access public
             fi
           }
 
           if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
-            publish_cmd packages/pi-smart-fetch
-            publish_cmd packages/openclaw-smart-fetch
+            publish_pkg pi-smart-fetch
+            publish_pkg openclaw-smart-fetch
             exit 0
           fi
 
           case "$SELECTED_PACKAGE" in
             all)
-              publish_cmd packages/pi-smart-fetch
-              publish_cmd packages/openclaw-smart-fetch
+              publish_pkg pi-smart-fetch
+              publish_pkg openclaw-smart-fetch
               ;;
             pi)
-              publish_cmd packages/pi-smart-fetch
+              publish_pkg pi-smart-fetch
               ;;
             openclaw)
-              publish_cmd packages/openclaw-smart-fetch
+              publish_pkg openclaw-smart-fetch
               ;;
             *)
               echo "Unknown package selection: $SELECTED_PACKAGE" >&2
