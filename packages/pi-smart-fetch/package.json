@@ -1,8 +1,8 @@
 {
   "name": "pi-smart-fetch",
-  "version": "0.2.25",
+  "version": "0.2.26",
   "type": "module",
-  "description": "pi.dev smart fetch extension with browser-grade TLS fingerprinting and Defuddle extraction.",
+  "description": "Smart web_fetch with TLS desktop-browser TLS fingerprinting and defuddle extraction.",
   "license": "MIT",
   "author": "Thinkscape",
   "repository": {
