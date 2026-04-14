@@ -2,7 +2,7 @@
   "name": "pi-smart-fetch",
   "version": "0.2.29",
   "type": "module",
-  "description": "Smart web_fetch with TLS desktop-browser TLS fingerprinting and defuddle extraction.",
+  "description": "Smart web_fetch with desktop-browser TLS impersonation and defuddle extraction.",
   "license": "MIT",
   "author": "Thinkscape",
   "repository": {

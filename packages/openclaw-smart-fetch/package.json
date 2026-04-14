@@ -2,7 +2,7 @@
   "name": "openclaw-smart-fetch",
   "version": "0.2.29",
   "type": "module",
-  "description": "OpenClaw smart fetch plugin with browser-grade TLS fingerprinting and Defuddle extraction.",
+  "description": "OpenClaw web fetch plugin with desktop-browser TLS impersonation and defuddle extraction.",
   "license": "MIT",
   "author": "Thinkscape",
   "repository": {
