@@ -624,6 +624,62 @@ describe("createDefuddleFetch", () => {
     });
   });
 
+  it("returns a 404 http_error for X/Twitter JS-disabled pages (deleted tweet)", async () => {
+    const dependencies = createDependencies({
+      fetch: mock(async () =>
+        createResponse({
+          body: `<html><body>
+            <noscript><meta http-equiv="refresh" content="0;url=/i/nojs_router?path=%2Fblah"></noscript>
+            <div>We've detected that JavaScript is disabled in this browser.
+            Please enable JavaScript or switch to a supported browser
+            to continue using x.com.</div>
+          </body></html>`,
+        }),
+      ),
+    });
+    const defuddleFetch = createDefuddleFetch(dependencies);
+
+    const result = await defuddleFetch({
+      url: "https://x.com/user/status/12345",
+    });
+
+    expect(isError(result)).toBe(true);
+    if (isError(result)) {
+      expect(result.code).toBe("http_error");
+      expect(result.statusCode).toBe(404);
+      expect(result.statusText).toBe("Not Found");
+      expect(result.error).not.toContain("JavaScript is disabled");
+      expect(result.error).toContain("404");
+    }
+  });
+
+  it("does not trigger X/Twitter detection for non-X URLs with similar content", async () => {
+    const dependencies = createDependencies({
+      fetch: mock(async () =>
+        createResponse({
+          body: `<html><body>
+            We've detected that JavaScript is disabled in this browser.
+            Please enable JavaScript or switch to a supported browser.
+          </body></html>`,
+        }),
+      ),
+      defuddle: mock(
+        async () => ({ content: "", wordCount: 0 }) satisfies ExtractedContent,
+      ),
+    });
+    const defuddleFetch = createDefuddleFetch(dependencies);
+
+    const result = await defuddleFetch({
+      url: "https://example.com/js-required",
+    });
+
+    // Should get content via DOM fallback (the text IS there), NOT an X/Twitter 404
+    expect(isError(result)).toBe(false);
+    if (!isError(result)) {
+      expect(result.content).toContain("JavaScript is disabled");
+    }
+  });
+
   it("emits coarse status updates while fetching and extracting", async () => {
     const dependencies = createDependencies();
     const defuddleFetch = createDefuddleFetch(dependencies);

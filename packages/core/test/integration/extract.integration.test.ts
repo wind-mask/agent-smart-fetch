@@ -18,6 +18,8 @@ const TEST_URLS = {
   httpbinJson: "https://httpbin.org/json",
   browserLeaks: "https://tls.browserleaks.com/json",
   rfc9110Text: "https://www.rfc-editor.org/rfc/rfc9110.txt",
+  xTweetLive: "https://x.com/browser_use/status/2042077879186698386",
+  xTweetDeleted: "https://x.com/elikiiii1/status/1911480451906170921",
 };
 
 describeIf("integration: extraction pipeline", () => {
@@ -165,6 +167,41 @@ describeIf("integration: extraction pipeline", () => {
 
       expect(data.user_agent).toContain("Chrome/");
       expect(data.ja3_hash.length).toBeGreaterThan(10);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "extracts content from a live X/Twitter tweet",
+    async () => {
+      const result = await defuddleFetch({
+        url: TEST_URLS.xTweetLive,
+        format: "markdown",
+      });
+
+      expect(isError(result)).toBe(false);
+      if (!isError(result)) {
+        expect(result.site).toMatch(/X \(.*Twitter.*\)/i);
+        expect(result.wordCount).toBeGreaterThan(5);
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "returns a 404 error for a deleted/non-existent X/Twitter tweet instead of the JS-disabled boilerplate",
+    async () => {
+      const result = await defuddleFetch({
+        url: TEST_URLS.xTweetDeleted,
+        format: "markdown",
+      });
+
+      expect(isError(result)).toBe(true);
+      if (isError(result)) {
+        expect(result.code).toBe("http_error");
+        expect(result.statusCode).toBe(404);
+        expect(result.error).not.toContain("JavaScript is disabled");
+      }
     },
     TIMEOUT,
   );

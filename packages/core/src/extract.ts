@@ -382,6 +382,22 @@ function buildPlainTextResult(
   };
 }
 
+/**
+ * Detects X/Twitter "JavaScript is disabled" shell pages that indicate a tweet
+ * no longer exists (deleted, protected, or suspended). When X returns these
+ * pages instead of a proper 404, the oEmbed API also returns 404.
+ */
+function isTwitterJsDisabledPage(document: Document, url: string): boolean {
+  if (!/^(https?:\/\/)?(www\.)?(x\.com|twitter\.com)\//i.test(url))
+    return false;
+  const text =
+    document.body?.textContent ?? document.documentElement?.textContent ?? "";
+  return (
+    text.includes("JavaScript is disabled") &&
+    text.includes("supported browser")
+  );
+}
+
 function extractDomTextFallback(document: Document): string {
   const bodyText =
     document.body?.textContent ?? document.documentElement?.textContent ?? "";
@@ -1199,15 +1215,56 @@ export function createDefuddleFetch(
       });
       const fallbackDocument = parseLinkedomHTML(rawBody, finalUrl);
       const extractionDocument = parseLinkedomHTML(rawBody, finalUrl);
-      const extracted = await dependencies.defuddle(
-        extractionDocument,
-        finalUrl,
-        {
-          markdown: format !== "html",
-          removeImages,
-          includeReplies,
-        },
-      );
+
+      // Detect X/Twitter "JS disabled" shell pages early — these indicate the
+      // tweet no longer exists (deleted/protected/suspended). The oEmbed API
+      // returns 404 for the same URL, so we surface that as the error instead of
+      // returning the JS-disabled boilerplate as "content".
+      if (isTwitterJsDisabledPage(fallbackDocument, opts.url)) {
+        return {
+          error: `Server returned HTTP 404 Not Found for ${opts.url}.`,
+          code: "http_error",
+          phase: "loading",
+          retryable: false,
+          timeoutMs,
+          url: opts.url,
+          finalUrl,
+          statusCode: 404,
+          statusText: "Not Found",
+          mimeType: normalizeContentType(contentType) || undefined,
+          contentLength: errorContext.contentLength,
+        };
+      }
+
+      let extracted: Awaited<ReturnType<typeof dependencies.defuddle>>;
+      try {
+        // Defuddle's async extractors (e.g. X oEmbed) can throw on 404 and
+        // log a noisy "Error in async extraction" via console.error. Suppress
+        // that spam by intercepting console.error during the defuddle call.
+        const origConsoleError = console.error;
+        const suppressedErrors: unknown[] = [];
+        console.error = (...args: unknown[]) => {
+          suppressedErrors.push(args);
+        };
+        try {
+          extracted = await dependencies.defuddle(
+            extractionDocument,
+            finalUrl,
+            {
+              markdown: format !== "html",
+              removeImages,
+              includeReplies,
+            },
+          );
+        } finally {
+          console.error = origConsoleError;
+        }
+      } catch (_error) {
+        extracted = {
+          content: undefined,
+          wordCount: 0,
+        } as Awaited<ReturnType<typeof dependencies.defuddle>>;
+      }
 
       let extractedContent = extracted.content;
       let wordCount = extracted.wordCount;
