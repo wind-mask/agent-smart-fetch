@@ -3,8 +3,14 @@
   "name": "Smart Fetch",
   "version": "0.2.31",
   "description": "Clean web content extraction with browser-grade TLS fingerprinting. Uses wreq-js (Rust native bindings) for anti-bot bypass and Defuddle for superior content extraction.",
+  "skills": ["./skills"],
+  "contracts": {
+    "webFetchProviders": ["smart-fetch"],
+    "tools": ["smart_fetch", "batch_smart_fetch"]
+  },
   "configSchema": {
     "type": "object",
+    "additionalProperties": false,
     "properties": {
       "maxChars": {
         "type": "number",
@@ -46,7 +52,6 @@
         "type": "string",
         "description": "Absolute temp directory used for attachment and binary downloads. If omitted, the plugin uses an OS temp subdirectory."
       }
-    },
-    "additionalProperties": false
+    }
   }
 }

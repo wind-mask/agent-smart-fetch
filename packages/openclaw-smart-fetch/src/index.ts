@@ -1,5 +1,3 @@
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { Type } from "@sinclair/typebox";
 import {
   buildBatchFetchResponseText,
@@ -11,15 +9,14 @@ import {
   executeFetchToolCall,
   type FetchResult,
   isError,
-  resolveFetchToolDefaults,
 } from "smart-fetch-core";
-import type { PluginConfig, ToolRegistrationApi } from "./types";
+import type { ToolRegistrationApi } from "./types";
+import {
+  createSmartFetchWebFetchProvider,
+  resolvePluginDefaults,
+} from "./web-fetch-provider.js";
 
-export const resolvePluginDefaults = (pluginConfig: PluginConfig = {}) =>
-  resolveFetchToolDefaults({
-    tempDir: join(tmpdir(), "smart-fetch-openclaw"),
-    ...pluginConfig,
-  });
+export { resolvePluginDefaults };
 
 function renderToolResponse(result: FetchResult) {
   return {
@@ -39,6 +36,13 @@ const plugin = {
     "Clean web content extraction with TLS fingerprinting. Uses wreq-js (Rust native bindings) for browser-grade TLS and Defuddle for extraction.",
 
   register(api: ToolRegistrationApi) {
+    // Register as a WebFetch provider so the built-in web_fetch uses
+    // smart_fetch's TLS-fingerprinted pipeline as a fallback when its own
+    // HTTP+Readability extraction fails. No extra config needed.
+    if (api.registerWebFetchProvider) {
+      api.registerWebFetchProvider(createSmartFetchWebFetchProvider());
+    }
+
     const defaults = resolvePluginDefaults(api.pluginConfig);
 
     api.registerTool({

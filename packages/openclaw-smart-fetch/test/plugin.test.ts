@@ -2,7 +2,7 @@ import { describe, expect, it, mock } from "bun:test";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import plugin, { resolvePluginDefaults } from "../src/index";
-import type { ToolRegistrationApi } from "../src/types";
+import type { ToolRegistrationApi, WebFetchProvider } from "../src/types";
 
 describe("resolvePluginDefaults", () => {
   it("applies config overrides while preserving standard defaults", () => {
@@ -47,6 +47,24 @@ describe("plugin registration", () => {
       expect.arrayContaining(["smart_fetch", "batch_smart_fetch"]),
     );
     expect(api.logger.info).not.toHaveBeenCalled();
+  });
+
+  it("registers a WebFetch provider for built-in web_fetch fallback", () => {
+    let registeredProvider: WebFetchProvider | undefined;
+    const api: ToolRegistrationApi = {
+      registerTool() {},
+      registerWebFetchProvider(provider) {
+        registeredProvider = provider;
+      },
+      logger: { info: mock(() => {}) },
+    };
+
+    plugin.register(api);
+
+    expect(registeredProvider).toBeDefined();
+    expect(registeredProvider?.id).toBe("smart-fetch");
+    expect(registeredProvider?.label).toBe("Smart Fetch");
+    expect(registeredProvider?.requiresCredential).toBe(false);
   });
 
   it("surfaces invalid URL errors from the smart_fetch execution path", async () => {
