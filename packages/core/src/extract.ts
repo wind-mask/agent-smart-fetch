@@ -9,7 +9,9 @@ import { createWriteStream } from "node:fs";
 import { chmod, mkdir, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, parse } from "node:path";
+import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import deburr from "lodash/deburr.js";
 import { extension as mimeExtension } from "mime-types";
 import {
@@ -895,6 +897,107 @@ function mapRequestEventToProgress(
   }
 }
 
+function hostnameContainsUnderscore(url: string): boolean {
+  try {
+    return new URL(url).hostname
+      .split(".")
+      .some((label) => label.includes("_"));
+  } catch {
+    return false;
+  }
+}
+
+function isUnderscoreHostnameTlsCompatibilityError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /CERTIFICATE_VERIFY_FAILED|certificate verify failed|hostname mismatch|not valid for/i.test(
+    message,
+  );
+}
+
+function shouldRetryWithNativeFetch(url: string, error: unknown): boolean {
+  return (
+    hostnameContainsUnderscore(url) &&
+    isUnderscoreHostnameTlsCompatibilityError(error)
+  );
+}
+
+function createNativeFetchResponseLike(response: Response): FetchResponseLike {
+  return {
+    ok: response.ok,
+    status: response.status,
+    statusText: response.statusText,
+    url: response.url,
+    headers: {
+      get(name: string) {
+        return response.headers.get(name);
+      },
+    },
+    body: (response.body as FetchResponseLike["body"]) ?? null,
+    text: () => response.text(),
+    arrayBuffer: () => response.arrayBuffer(),
+    readable: () =>
+      response.body
+        ? Readable.fromWeb(response.body as unknown as NodeReadableStream)
+        : Readable.from([]),
+  };
+}
+
+async function fetchWithNativeFallback(
+  url: string,
+  fetchOptions: Record<string, unknown>,
+  errorContext: FetchErrorContext,
+  hooks: FetchExecutionHooks,
+): Promise<FetchResponseLike> {
+  const nativeFetch = globalThis.fetch;
+  if (typeof nativeFetch !== "function") {
+    throw new Error("Native fetch fallback is unavailable in this runtime.");
+  }
+
+  emitStatus(hooks, "connecting");
+  emitProgress(hooks, {
+    status: "connecting",
+    progress: 0,
+    phase: "native_fetch_retry",
+  });
+
+  const timeoutMs =
+    typeof fetchOptions.timeout === "number"
+      ? fetchOptions.timeout
+      : DEFAULT_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await nativeFetch(url, {
+      headers: fetchOptions.headers as HeadersInit | undefined,
+      redirect: fetchOptions.redirect as RequestRedirect | undefined,
+      signal: controller.signal,
+    });
+
+    errorContext.phase = "loading";
+    errorContext.finalUrl = response.url || url;
+    errorContext.statusCode = response.status;
+    errorContext.statusText = response.statusText;
+    errorContext.mimeType =
+      normalizeContentType(response.headers.get("content-type") ?? "") ||
+      undefined;
+    errorContext.contentLength =
+      errorContext.contentLength ??
+      parseContentLengthHeader(response.headers.get("content-length"));
+
+    emitStatus(hooks, "loading");
+    emitProgress(hooks, {
+      status: "loading",
+      progress: 0.51,
+      phase: "native_response_headers",
+    });
+
+    return createNativeFetchResponseLike(response);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function resolveAcceptHeader(format: OutputFormat): string {
   if (format === "json") return DEFAULT_JSON_ACCEPT_HEADER;
   if (format === "raw") return DEFAULT_RAW_ACCEPT_HEADER;
@@ -1227,7 +1330,20 @@ export function createDefuddleFetch(
         }
       };
       fetchOptions.captureDiagnostics = true;
-      const response = await dependencies.fetch(opts.url, fetchOptions);
+      let response: FetchResponseLike;
+      try {
+        response = await dependencies.fetch(opts.url, fetchOptions);
+      } catch (error) {
+        if (!shouldRetryWithNativeFetch(opts.url, error)) {
+          throw error;
+        }
+        response = await fetchWithNativeFallback(
+          opts.url,
+          fetchOptions,
+          errorContext,
+          hooks,
+        );
+      }
 
       errorContext.finalUrl = response.url ?? opts.url;
       errorContext.statusCode = response.status;
