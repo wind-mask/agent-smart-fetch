@@ -456,6 +456,66 @@ describe("createDefuddleFetch", () => {
     }
   });
 
+  it("falls back to native fetch for underscore hostnames when strict TLS hostname verification rejects them", async () => {
+    const originalFetch = globalThis.fetch;
+    const nativeResponse = new Response(
+      "<html><body><article><h1>Recovered</h1><p>Via native fetch</p></article></body></html>",
+      {
+        status: 200,
+        headers: { "content-type": "text/html; charset=utf-8" },
+      },
+    );
+
+    const mockedNativeFetch: unknown = mock(
+      async (input: string | URL | Request) => {
+        expect(String(input)).toBe("https://asd_xv.codeberg.page/");
+        return nativeResponse.clone();
+      },
+    );
+    globalThis.fetch = mockedNativeFetch as typeof fetch;
+
+    try {
+      const dependencies = createDependencies({
+        fetch: mock(async (_url: string, options: Record<string, unknown>) => {
+          const onRequestEvent = options.onRequestEvent as
+            | ((event: Record<string, unknown>) => void)
+            | undefined;
+          onRequestEvent?.({ type: "request_start" });
+          throw new Error(
+            "certificate verify failed: Hostname mismatch, certificate is not valid for 'asd_xv.codeberg.page'",
+          );
+        }),
+        defuddle: mock(async (document: Document) => ({
+          content:
+            document.body?.textContent?.replace(/\s+/g, " ").trim() ?? "",
+          wordCount: 4,
+          title: "Recovered",
+          author: "",
+          published: "",
+          site: "",
+          language: "en",
+        })),
+      });
+      const defuddleFetch = createDefuddleFetch(dependencies);
+
+      const result = await defuddleFetch({
+        url: "https://asd_xv.codeberg.page/",
+        format: "text",
+      });
+
+      expect(isError(result)).toBe(false);
+      expect(dependencies.fetch).toHaveBeenCalledTimes(1);
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      if (!isError(result)) {
+        expect(result.content).toContain("Recovered");
+        expect(result.content).toContain("Via native fetch");
+        expect(result.url).toBe("https://asd_xv.codeberg.page/");
+      }
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("removes partial temp files when a readable-stream download times out", async () => {
     const tempDir = join(
       tmpdir(),
@@ -700,9 +760,9 @@ describe("createDefuddleFetch", () => {
         }),
       ),
       defuddle: mock(async (document: Document) => {
-        document.querySelectorAll("noscript").forEach((node) => {
+        for (const node of document.querySelectorAll("noscript")) {
           node.remove();
-        });
+        }
         return { content: "", wordCount: 0 } satisfies ExtractedContent;
       }),
     });
