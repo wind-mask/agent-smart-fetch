@@ -636,6 +636,9 @@ describe("createDefuddleFetch", () => {
           </body></html>`,
         }),
       ),
+      defuddle: mock(
+        async () => ({ content: "", wordCount: 0 }) satisfies ExtractedContent,
+      ),
     });
     const defuddleFetch = createDefuddleFetch(dependencies);
 
@@ -650,6 +653,42 @@ describe("createDefuddleFetch", () => {
       expect(result.statusText).toBe("Not Found");
       expect(result.error).not.toContain("JavaScript is disabled");
       expect(result.error).toContain("404");
+    }
+  });
+
+  it("keeps extracted X/Twitter content when the fetched page is a JS-disabled shell", async () => {
+    const dependencies = createDependencies({
+      fetch: mock(async () =>
+        createResponse({
+          body: `<html><body>
+            <div>We've detected that JavaScript is disabled in this browser.
+            Please enable JavaScript or switch to a supported browser
+            to continue using x.com.</div>
+          </body></html>`,
+        }),
+      ),
+      defuddle: mock(
+        async () =>
+          ({
+            content: "**Author** @user\n\nA real tweet extracted by oEmbed.",
+            wordCount: 8,
+            title: "Post by @user",
+            author: "@user",
+            site: "X (Twitter)",
+            language: "en",
+          }) satisfies ExtractedContent,
+      ),
+    });
+    const defuddleFetch = createDefuddleFetch(dependencies);
+
+    const result = await defuddleFetch({
+      url: "https://x.com/user/status/12345",
+    });
+
+    expect(isError(result)).toBe(false);
+    if (!isError(result)) {
+      expect(result.content).toContain("A real tweet extracted by oEmbed");
+      expect(result.site).toBe("X (Twitter)");
     }
   });
 

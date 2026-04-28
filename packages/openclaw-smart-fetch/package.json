@@ -1,6 +1,6 @@
 {
   "name": "openclaw-smart-fetch",
-  "version": "0.2.32",
+  "version": "0.2.33",
   "type": "module",
   "description": "OpenClaw web fetch plugin with desktop-browser TLS impersonation and defuddle extraction.",
   "license": "MIT",
@@ -69,7 +69,7 @@
   "dependencies": {
     "@sinclair/typebox": "^0.34.49",
     "wreq-js": "^2.3.0",
-    "defuddle": "^0.16.0",
+    "defuddle": "^0.18.1",
     "linkedom": "^0.18.12"
   }
 }

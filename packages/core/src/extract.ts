@@ -1268,7 +1268,7 @@ export function createDefuddleFetch(
           fallbackDocument,
           opts.url,
         );
-        if (hasOembed404 || hasJsDisabledShell) {
+        if ((hasOembed404 || hasJsDisabledShell) && !extracted.content) {
           return {
             error: `Server returned HTTP 404 Not Found for ${opts.url}.`,
             code: "http_error",
