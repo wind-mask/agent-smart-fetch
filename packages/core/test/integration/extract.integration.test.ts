@@ -20,6 +20,12 @@ const TEST_URLS = {
   rfc9110Text: "https://www.rfc-editor.org/rfc/rfc9110.txt",
   xTweetLive: "https://x.com/browser_use/status/2042077879186698386",
   xTweetDeleted: "https://x.com/elikiiii1/status/1911480451906170921",
+  applePersistingPurchase:
+    "https://developer.apple.com/documentation/storekit/persisting-a-purchase",
+  appleChoosingReceiptValidation:
+    "https://developer.apple.com/documentation/storekit/choosing-a-receipt-validation-technique",
+  appleTransactionCurrentEntitlements:
+    "https://developer.apple.com/documentation/storekit/transaction/currententitlements",
 };
 
 describeIf("integration: extraction pipeline", () => {
@@ -57,6 +63,28 @@ describeIf("integration: extraction pipeline", () => {
       if (!isError(result)) {
         expect(result.content).toContain("```json");
         expect(result.content).toContain('"slideshow"');
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "follows markdown alternate links from JavaScript documentation shells",
+    async () => {
+      for (const url of [
+        TEST_URLS.applePersistingPurchase,
+        TEST_URLS.appleChoosingReceiptValidation,
+        TEST_URLS.appleTransactionCurrentEntitlements,
+      ]) {
+        const result = await defuddleFetch({ url, format: "markdown" });
+
+        expect(isError(result)).toBe(false);
+        if (!isError(result)) {
+          expect(result.finalUrl).toContain("/tutorials/data/");
+          expect(result.finalUrl).toEndWith(".md");
+          expect(result.content).not.toContain("This page requires JavaScript");
+          expect(result.wordCount).toBeGreaterThan(20);
+        }
       }
     },
     TIMEOUT,

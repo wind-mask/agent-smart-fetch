@@ -13,6 +13,7 @@ The core now covers both:
 - batch fetch execution over an array of single-item requests
 - attachment/binary detection and temp-file streaming
 - bounded client-side `<meta http-equiv="refresh">` redirect handling
+- bounded alternate-content fallback via qualified `<link rel="alternate" type="...">` tags in `<head>`, selected according to the requested output format
 
 Batch behavior in the core:
 - each item uses the same parameter surface as the single-fetch tool
@@ -38,3 +39,4 @@ Recent `feat:` work added:
 - timer-driven progress animation support for pi batch fetch rendering
 - attachment and binary streaming support in the shared fetch pipeline
 - bounded support for client-side `<meta>` refresh redirects
+- alternate link fallback for JavaScript documentation shells and other pages that publish machine-readable alternates

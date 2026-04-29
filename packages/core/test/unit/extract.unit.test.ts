@@ -198,6 +198,75 @@ describe("createDefuddleFetch", () => {
     expect(isError(result)).toBe(false);
   });
 
+  it("falls back to matching alternate link tags in the head when extracted HTML is too thin", async () => {
+    const fetch = mock(async (url: string) => {
+      if (url === "https://example.com/docs/page") {
+        return createResponse({
+          url,
+          body: `<html><head><link rel="alternate" type="text/markdown" href="/data/page.md"></head><body>This page requires JavaScript.</body></html>`,
+        });
+      }
+
+      return createResponse({
+        url,
+        contentType: "text/markdown; charset=utf-8",
+        body: "# Alternate content\n\nThis is the readable fallback document with enough words to be useful.",
+      });
+    });
+    const dependencies = createDependencies({
+      fetch,
+      defuddle: mock(async () => ({ content: undefined, wordCount: 0 })),
+    });
+    const defuddleFetch = createDefuddleFetch(dependencies);
+
+    const result = await defuddleFetch({
+      url: "https://example.com/docs/page",
+      format: "markdown",
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls[1]?.[0]).toBe("https://example.com/data/page.md");
+    expect(isError(result)).toBe(false);
+    if (!isError(result)) {
+      expect(result.finalUrl).toBe("https://example.com/data/page.md");
+      expect(result.content).toContain("# Alternate content");
+    }
+  });
+
+  it("selects alternate links according to the requested format", async () => {
+    const fetch = mock(async (url: string) => {
+      if (url === "https://example.com/docs/page") {
+        return createResponse({
+          url,
+          body: `<html><head><link rel="alternate" type="text/markdown" href="/data/page.md"><link rel="alternate" type="application/json" href="/data/page.json"></head><body>Requires JavaScript.</body></html>`,
+        });
+      }
+
+      return createResponse({
+        url,
+        contentType: "application/json; charset=utf-8",
+        body: '{"title":"Alternate JSON"}',
+      });
+    });
+    const dependencies = createDependencies({
+      fetch,
+      defuddle: mock(async () => ({ content: undefined, wordCount: 0 })),
+    });
+    const defuddleFetch = createDefuddleFetch(dependencies);
+
+    const result = await defuddleFetch({
+      url: "https://example.com/docs/page",
+      format: "json",
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls[1]?.[0]).toBe("https://example.com/data/page.json");
+    expect(isError(result)).toBe(false);
+    if (!isError(result)) {
+      expect(result.content).toContain('"Alternate JSON"');
+    }
+  });
+
   it("stops following meta refresh redirects after a fixed limit", async () => {
     const fetch = mock(async (url: string) =>
       createResponse({

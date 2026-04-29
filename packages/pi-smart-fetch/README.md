@@ -11,6 +11,7 @@
 - 🧠 **Useful metadata** — title, author, site, language, published date when available
 - 📦 **Downloads + large file support** — stream attachments and binaries to temp files
 - 🔁 **Client-side `<meta>` redirects** — follows sane meta refresh redirects with loop limits
+- 🔗 **Alternate content fallback** — when extraction produces no/thin content, follows qualified `<link rel="alternate" type="...">` entries in `<head>` that match the requested output format
 - ⚡ **Batch fetch** — fetch many URLs with bounded concurrency
 - 📝 **Multiple output formats** — `markdown`, `html`, `text`, `json`
 
@@ -29,6 +30,7 @@ This package works on general web pages, but some site types benefit especially 
 Notes:
 - Defuddle is the cleanup layer: it strips common page chrome like nav, sidebars, related links, share widgets, and footers
 - It does **not** execute JavaScript or solve interactive anti-bot/login flows
+- If an HTML shell advertises alternate content in `<head>`, smart-fetch can follow matching alternates such as `text/markdown`, `text/plain`, `text/html`, or JSON media types according to the requested `format`
 
 ## Install
 

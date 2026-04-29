@@ -67,6 +67,8 @@ const HTML_CONTENT_TYPES = [
 ];
 
 const MAX_CLIENT_SIDE_REDIRECTS = 5;
+const MAX_ALTERNATE_LINK_FALLBACKS = 3;
+const MIN_EXTRACTED_WORDS_BEFORE_ALTERNATE_FALLBACK = 30;
 
 function normalizeContentType(contentType: string): string {
   return contentType.split(";")[0]?.trim().toLowerCase() ?? "";
@@ -850,6 +852,49 @@ function decodeHtmlAttribute(value: string): string {
     .replace(/&gt;/gi, ">");
 }
 
+function extractQualifiedAlternateLinks(
+  document: Document,
+  baseUrl: string,
+  format: OutputFormat,
+): string[] {
+  const acceptedTypes: Record<OutputFormat, string[]> = {
+    markdown: ["text/markdown", "text/x-markdown"],
+    text: ["text/plain", "text/markdown", "text/x-markdown"],
+    html: ["text/html", "application/xhtml+xml"],
+    json: ["application/json", "text/json"],
+  };
+  const accepted = acceptedTypes[format];
+  const head = document.head;
+  if (!head) return [];
+
+  const links = Array.from(head.querySelectorAll("link"));
+  const candidates: string[] = [];
+  for (const link of links) {
+    const rel = (link.getAttribute("rel") ?? "").toLowerCase().split(/\s+/);
+    if (!rel.includes("alternate")) continue;
+
+    const type = normalizeContentType(link.getAttribute("type") ?? "");
+    const isAccepted =
+      accepted.some((value) => type === value) ||
+      (format === "json" && type.endsWith("+json"));
+    if (!isAccepted) continue;
+
+    const href = link.getAttribute("href");
+    if (!href) continue;
+
+    try {
+      const target = new URL(href, baseUrl).toString();
+      if (target !== baseUrl && !candidates.includes(target)) {
+        candidates.push(target);
+      }
+    } catch {
+      // Ignore malformed alternate links.
+    }
+  }
+
+  return candidates;
+}
+
 function extractClientSideRedirect(
   body: string,
   baseUrl: string,
@@ -1013,6 +1058,7 @@ export function createDefuddleFetch(
     opts: FetchOptions,
     hooks: FetchExecutionHooks,
     clientSideRedirectCount: number,
+    alternateLinkFallbackCount: number,
   ): Promise<FetchResult | FetchError> {
     const browser = opts.browser ?? DEFAULT_BROWSER;
     const os = opts.os ?? DEFAULT_OS;
@@ -1184,6 +1230,7 @@ export function createDefuddleFetch(
           { ...opts, url: clientSideRedirect },
           hooks,
           clientSideRedirectCount + 1,
+          alternateLinkFallbackCount,
         );
       }
 
@@ -1191,6 +1238,25 @@ export function createDefuddleFetch(
 
       if (format === "json") {
         if (!jsonResponse) {
+          if (HTML_CONTENT_TYPES.some((value) => contentType.includes(value))) {
+            const alternateLinks = extractQualifiedAlternateLinks(
+              parseLinkedomHTML(rawBody, finalUrl),
+              finalUrl,
+              format,
+            );
+            if (
+              alternateLinks.length > 0 &&
+              alternateLinkFallbackCount < MAX_ALTERNATE_LINK_FALLBACKS
+            ) {
+              return fetchWithClientRedirects(
+                { ...opts, url: alternateLinks[0] },
+                hooks,
+                clientSideRedirectCount,
+                alternateLinkFallbackCount + 1,
+              );
+            }
+          }
+
           return {
             error: `Not a JSON response (content-type: ${contentType})`,
             code: "unexpected_response",
@@ -1287,6 +1353,27 @@ export function createDefuddleFetch(
       });
       const fallbackDocument = parseLinkedomHTML(rawBody, finalUrl);
       const extractionDocument = parseLinkedomHTML(rawBody, finalUrl);
+      const alternateLinks = extractQualifiedAlternateLinks(
+        fallbackDocument,
+        finalUrl,
+        format,
+      );
+
+      const tryAlternateLinkFallback = async () => {
+        if (
+          alternateLinks.length === 0 ||
+          alternateLinkFallbackCount >= MAX_ALTERNATE_LINK_FALLBACKS
+        ) {
+          return null;
+        }
+
+        return fetchWithClientRedirects(
+          { ...opts, url: alternateLinks[0] },
+          hooks,
+          clientSideRedirectCount,
+          alternateLinkFallbackCount + 1,
+        );
+      };
 
       let extracted: Awaited<ReturnType<typeof dependencies.defuddle>>;
       const suppressedErrors: unknown[][] = [];
@@ -1363,6 +1450,9 @@ export function createDefuddleFetch(
       if (!extractedContent || wordCount === 0) {
         const fallbackText = extractDomTextFallback(fallbackDocument);
         if (!fallbackText) {
+          const alternateResult = await tryAlternateLinkFallback();
+          if (alternateResult) return alternateResult;
+
           return {
             error: `No content extracted from ${opts.url}. May need JS rendering or is blocked.`,
             code: "no_content",
@@ -1383,6 +1473,18 @@ export function createDefuddleFetch(
               ? extractDomMarkdownFallback(fallbackDocument) || fallbackText
               : fallbackText;
         wordCount = estimateWordCount(fallbackText);
+      }
+
+      const extractedTextWordCount = estimateWordCount(
+        format === "text" ? extractedContent : markdownToText(extractedContent),
+      );
+      if (
+        Math.min(wordCount, extractedTextWordCount) <
+          MIN_EXTRACTED_WORDS_BEFORE_ALTERNATE_FALLBACK &&
+        alternateLinks.length > 0
+      ) {
+        const alternateResult = await tryAlternateLinkFallback();
+        if (alternateResult) return alternateResult;
       }
 
       if (
@@ -1436,7 +1538,7 @@ export function createDefuddleFetch(
     opts: FetchOptions,
     hooks: FetchExecutionHooks = {},
   ): Promise<FetchResult | FetchError> {
-    return fetchWithClientRedirects(opts, hooks, 0);
+    return fetchWithClientRedirects(opts, hooks, 0, 0);
   };
 }
 
