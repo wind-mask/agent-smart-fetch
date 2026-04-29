@@ -61,7 +61,8 @@ export type FetchErrorCode =
   | "network_error"
   | "processing_error"
   | "download_error"
-  | "no_content";
+  | "no_content"
+  | "too_many_redirects";
 
 export type FetchErrorPhase =
   | "validation"

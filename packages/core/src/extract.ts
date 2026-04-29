@@ -66,6 +66,8 @@ const HTML_CONTENT_TYPES = [
   "text/markdown",
 ];
 
+const MAX_CLIENT_SIDE_REDIRECTS = 5;
+
 function normalizeContentType(contentType: string): string {
   return contentType.split(";")[0]?.trim().toLowerCase() ?? "";
 }
@@ -839,6 +841,52 @@ function isJsonResponse(contentType: string, body: string): boolean {
   return isJsonContentType(contentType) || isLikelyJsonBody(body);
 }
 
+function decodeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">");
+}
+
+function extractClientSideRedirect(
+  body: string,
+  baseUrl: string,
+): string | null {
+  const snippet = body.slice(0, 4096);
+  const metaRefreshMatch = snippet.match(
+    /<meta\b[^>]*http-equiv=["']?refresh["']?[^>]*content=["']?([^"'>]*)["']?[^>]*>/i,
+  );
+  const refreshContent = metaRefreshMatch?.[1];
+
+  if (!refreshContent) {
+    return null;
+  }
+
+  const [delayPart = "", ...rest] =
+    decodeHtmlAttribute(refreshContent).split(";");
+  const delaySeconds = Number.parseFloat(delayPart.trim());
+  const urlMatch = rest.join(";").match(/\burl\s*=\s*(.+)$/i);
+  const rawTarget = urlMatch?.[1]?.trim().replace(/^['"]|['"]$/g, "");
+
+  if (
+    !rawTarget ||
+    !Number.isFinite(delaySeconds) ||
+    delaySeconds < 0 ||
+    delaySeconds >= 30
+  ) {
+    return null;
+  }
+
+  try {
+    const targetUrl = new URL(rawTarget, baseUrl).toString();
+    return targetUrl === baseUrl ? null : targetUrl;
+  } catch {
+    return null;
+  }
+}
+
 function buildJsonResult(
   opts: FetchOptions,
   finalUrl: string,
@@ -961,9 +1009,10 @@ export function getLatestChromeProfile(): string {
 export function createDefuddleFetch(
   dependencies: FetchDependencies = runtimeDependencies,
 ) {
-  return async function defuddleFetch(
+  async function fetchWithClientRedirects(
     opts: FetchOptions,
-    hooks: FetchExecutionHooks = {},
+    hooks: FetchExecutionHooks,
+    clientSideRedirectCount: number,
   ): Promise<FetchResult | FetchError> {
     const browser = opts.browser ?? DEFAULT_BROWSER;
     const os = opts.os ?? DEFAULT_OS;
@@ -1115,6 +1164,29 @@ export function createDefuddleFetch(
 
       errorContext.phase = "loading";
       const rawBody = await response.text();
+      const clientSideRedirect = extractClientSideRedirect(rawBody, finalUrl);
+      if (clientSideRedirect) {
+        if (clientSideRedirectCount >= MAX_CLIENT_SIDE_REDIRECTS) {
+          return {
+            error: `Client-side redirect limit (${MAX_CLIENT_SIDE_REDIRECTS}) exceeded while fetching ${opts.url}.`,
+            code: "too_many_redirects",
+            phase: "loading",
+            retryable: false,
+            timeoutMs,
+            url: opts.url,
+            finalUrl,
+            mimeType: normalizeContentType(contentType) || undefined,
+            contentLength: errorContext.contentLength,
+          };
+        }
+
+        return fetchWithClientRedirects(
+          { ...opts, url: clientSideRedirect },
+          hooks,
+          clientSideRedirectCount + 1,
+        );
+      }
+
       const jsonResponse = isJsonResponse(contentType, rawBody);
 
       if (format === "json") {
@@ -1358,6 +1430,13 @@ export function createDefuddleFetch(
       emitProgress(hooks, { status: "error", progress: 1, phase: "error" });
       return fetchError;
     }
+  }
+
+  return function defuddleFetch(
+    opts: FetchOptions,
+    hooks: FetchExecutionHooks = {},
+  ): Promise<FetchResult | FetchError> {
+    return fetchWithClientRedirects(opts, hooks, 0);
   };
 }
 

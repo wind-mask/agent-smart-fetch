@@ -12,6 +12,7 @@ The core now covers both:
 - single-item fetch execution
 - batch fetch execution over an array of single-item requests
 - attachment/binary detection and temp-file streaming
+- bounded client-side `<meta http-equiv="refresh">` redirect handling
 
 Batch behavior in the core:
 - each item uses the same parameter surface as the single-fetch tool
@@ -36,3 +37,4 @@ Recent `feat:` work added:
 - publish-ready TypeScript/build/test tooling across the monorepo
 - timer-driven progress animation support for pi batch fetch rendering
 - attachment and binary streaming support in the shared fetch pipeline
+- bounded support for client-side `<meta>` refresh redirects

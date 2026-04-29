@@ -137,6 +137,86 @@ describe("createDefuddleFetch", () => {
     );
   });
 
+  it("follows t.co-style meta refresh redirects", async () => {
+    const fetch = mock(async (url: string) => {
+      if (url === "https://t.co/example") {
+        return createResponse({
+          url,
+          body: `<head><meta name="referrer" content="always"><noscript><META http-equiv="refresh" content="0;URL=http://github.com/example/repo"></noscript><title>http://github.com/example/repo</title></head><script>window.opener = null; location.replace("http://github.com/example/repo")</script>`,
+        });
+      }
+
+      return createResponse({
+        url: "https://github.com/example/repo",
+        body: "<html><body><article><h1>Repository</h1><p>Content</p></article></body></html>",
+      });
+    });
+    const dependencies = createDependencies({ fetch });
+    const defuddleFetch = createDefuddleFetch(dependencies);
+
+    const result = await defuddleFetch({ url: "https://t.co/example" });
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls[1]?.[0]).toBe("http://github.com/example/repo");
+    expect(isError(result)).toBe(false);
+    if (!isError(result)) {
+      expect(result.finalUrl).toBe("https://github.com/example/repo");
+    }
+  });
+
+  it("ignores meta refresh redirects with delays of 30 seconds or more", async () => {
+    const dependencies = createDependencies({
+      fetch: mock(async (url: string) =>
+        createResponse({
+          url,
+          body: `<meta http-equiv="refresh" content="30;URL=https://example.com/later">`,
+        }),
+      ),
+    });
+    const defuddleFetch = createDefuddleFetch(dependencies);
+
+    const result = await defuddleFetch({ url: "https://example.com/start" });
+
+    expect(dependencies.fetch).toHaveBeenCalledTimes(1);
+    expect(isError(result)).toBe(false);
+  });
+
+  it("ignores meta refresh redirects back to the current URL", async () => {
+    const dependencies = createDependencies({
+      fetch: mock(async (url: string) =>
+        createResponse({
+          url,
+          body: `<meta http-equiv="refresh" content="0;URL=${url}">`,
+        }),
+      ),
+    });
+    const defuddleFetch = createDefuddleFetch(dependencies);
+
+    const result = await defuddleFetch({ url: "https://example.com/start" });
+
+    expect(dependencies.fetch).toHaveBeenCalledTimes(1);
+    expect(isError(result)).toBe(false);
+  });
+
+  it("stops following meta refresh redirects after a fixed limit", async () => {
+    const fetch = mock(async (url: string) =>
+      createResponse({
+        url,
+        body: `<meta http-equiv="refresh" content="0;URL=${url}/next">`,
+      }),
+    );
+    const dependencies = createDependencies({ fetch });
+    const defuddleFetch = createDefuddleFetch(dependencies);
+
+    const result = await defuddleFetch({ url: "https://example.com/start" });
+
+    expect(fetch).toHaveBeenCalledTimes(6);
+    expect(isError(result)).toBe(true);
+    if (isError(result)) {
+      expect(result.code).toBe("too_many_redirects");
+    }
+  });
+
   it("merges custom headers and proxy options", async () => {
     const dependencies = createDependencies();
     const defuddleFetch = createDefuddleFetch(dependencies);
@@ -629,7 +709,6 @@ describe("createDefuddleFetch", () => {
       fetch: mock(async () =>
         createResponse({
           body: `<html><body>
-            <noscript><meta http-equiv="refresh" content="0;url=/i/nojs_router?path=%2Fblah"></noscript>
             <div>We've detected that JavaScript is disabled in this browser.
             Please enable JavaScript or switch to a supported browser
             to continue using x.com.</div>

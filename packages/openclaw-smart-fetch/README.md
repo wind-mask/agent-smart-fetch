@@ -8,6 +8,7 @@
 - 🧹 **Defuddle extraction** — clean readable content instead of noisy HTML
 - 🧠 **Useful metadata** — title, author, site, language, published date when available
 - 📦 **Downloads + large file support** — stream attachments and binaries to temp files
+- 🔁 **Client-side `<meta>` redirects** — follows sane meta refresh redirects with loop limits
 - ⚡ **Batch fetch** — fetch many URLs with bounded concurrency
 - 📝 **Multiple output formats** — `markdown`, `html`, `text`, `json`
 - 🔄 **Built-in `web_fetch` fallback** — automatically improves the core web_fetch tool
