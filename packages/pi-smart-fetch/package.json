@@ -1,6 +1,6 @@
 {
   "name": "pi-smart-fetch",
-  "version": "0.2.35",
+  "version": "0.2.36",
   "type": "module",
   "description": "Smart web_fetch with desktop-browser TLS impersonation and defuddle extraction.",
   "license": "MIT",
@@ -58,7 +58,7 @@
     "pack:dry-run": "bun run build && npm pack --dry-run"
   },
   "dependencies": {
-    "@mariozechner/pi-tui": "^0.66.1",
+    "@mariozechner/pi-tui": "^0.73.0",
     "@sinclair/typebox": "^0.34.49",
     "wreq-js": "^2.3.0",
     "defuddle": "^0.18.1",
