@@ -22,6 +22,7 @@ const packagePaths = [
   "packages/core/package.json",
   "packages/pi-smart-fetch/package.json",
   "packages/openclaw-smart-fetch/package.json",
+  "packages/smart-fetch/package.json",
 ];
 
 function bump(version: string, release: ReleaseKind) {

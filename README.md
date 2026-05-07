@@ -13,6 +13,15 @@ Better web fetching for agents.
 - ⚡ **Batch fetch** — fetch many URLs with bounded concurrency
 - 📝 **Multiple output formats** — `markdown`, `html`, `text`, `json`
 
+## [@thinkscape/smart-fetch](./packages/smart-fetch/README.md)
+
+Smart Fetch CLI. Install globally and use `smart-fetch` (or `sf`) from the terminal.
+
+```bash
+npm install -g @thinkscape/smart-fetch
+sf https://example.com
+```
+
 ## [pi-smart-fetch](./packages/pi-smart-fetch/README.md)
 
 Smart Fetch for pi.dev.
@@ -55,10 +64,12 @@ Run package-specific commands:
 bun run test:core
 bun run test:pi
 bun run test:openclaw
+bun run test:cli
 
 bun run build:core
 bun run build:pi
 bun run build:openclaw
+bun run build:cli
 ```
 
 Integration tests:
@@ -96,6 +107,7 @@ Local manual publish commands:
 ```bash
 bun run publish:pi
 bun run publish:openclaw
+bun run publish:cli
 bun run publish:all
 ```
 

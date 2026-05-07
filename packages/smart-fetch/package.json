@@ -1,8 +1,8 @@
 {
-  "name": "openclaw-smart-fetch",
+  "name": "@thinkscape/smart-fetch",
   "version": "0.3.0",
   "type": "module",
-  "description": "OpenClaw web fetch plugin with desktop-browser TLS impersonation and defuddle extraction.",
+  "description": "Smart web fetch CLI with desktop-browser TLS impersonation and defuddle extraction.",
   "license": "MIT",
   "author": "Thinkscape",
   "repository": {
@@ -14,27 +14,21 @@
     "url": "https://github.com/Thinkscape/agent-smart-fetch/issues"
   },
   "keywords": [
-    "openclaw",
-    "plugin",
     "smart-fetch",
     "defuddle",
     "wreq-js",
     "content-extraction",
     "web-fetch",
-    "tls-fingerprinting"
+    "tls-fingerprinting",
+    "cli"
   ],
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
+  "main": "./dist/cli.js",
+  "bin": {
+    "smart-fetch": "./dist/cli.js",
+    "sf": "./dist/cli.js"
   },
   "files": [
     "dist/",
-    "skills/",
-    "openclaw.plugin.json",
     "README.md",
     "LICENSE"
   ],
@@ -44,19 +38,6 @@
   },
   "publishConfig": {
     "access": "public"
-  },
-  "openclaw": {
-    "extensions": [
-      "./dist/index.js"
-    ],
-    "compat": {
-      "pluginApi": ">=2026.3.2",
-      "minGatewayVersion": "2026.3.2"
-    },
-    "build": {
-      "openclawVersion": "2026.3.2",
-      "pluginSdkVersion": "2026.3.2"
-    }
   },
   "scripts": {
     "clean": "rm -rf dist",
@@ -70,6 +51,8 @@
     "@sinclair/typebox": "^0.34.49",
     "wreq-js": "^2.3.0",
     "defuddle": "^0.18.1",
-    "linkedom": "^0.18.12"
+    "linkedom": "^0.18.12",
+    "mime-types": "^3.0.2",
+    "lodash": "^4.18.1"
   }
 }
