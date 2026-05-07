@@ -57,7 +57,7 @@ Limitations — escalate to the **browser** tool for:
 | `headers`          | `Record<string,string>`         | Custom HTTP headers                                                           |
 | `maxChars`         | `number`                        | Max characters to return (default: 50000)                                     |
 | `timeoutMs`        | `number`                        | Request timeout in ms (default: 15000)                                        |
-| `format`           | `string`                        | Output: `markdown` (default), `html`, `text`, `json`                          |
+| `format`           | `string`                        | Output: `markdown` (default), `html`, `text`, `json`, `raw`                  |
 | `removeImages`     | `boolean`                       | Strip image references (default: false)                                       |
 | `includeReplies`   | `boolean` or `"extractors"`     | Include comments/replies (default: `"extractors"`)                            |
 | `proxy`            | `string`                        | HTTP or SOCKS5 proxy URL                                                      |
@@ -72,6 +72,9 @@ Limitations — escalate to the **browser** tool for:
   math, callouts, schema.org metadata).
 - **Richer metadata** — returns author, publish date, site name, language,
   word count.
+- **`raw` format** — returns the full unmodified server response (HTML,
+  JSON, markdown, etc.) without extraction or truncation. Use when you
+  need to parse the raw markup yourself.
 - **No API key required** — works out of the box.
 
 ## batch_smart_fetch

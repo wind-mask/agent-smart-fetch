@@ -20,6 +20,7 @@ import {
   DEFAULT_JSON_ACCEPT_HEADER,
   DEFAULT_MAX_CHARS,
   DEFAULT_OS,
+  DEFAULT_RAW_ACCEPT_HEADER,
   DEFAULT_TIMEOUT_MS,
 } from "./constants";
 import { runtimeDependencies } from "./dependencies";
@@ -822,7 +823,9 @@ function mapRequestEventToProgress(
 }
 
 function resolveAcceptHeader(format: OutputFormat): string {
-  return format === "json" ? DEFAULT_JSON_ACCEPT_HEADER : DEFAULT_ACCEPT_HEADER;
+  if (format === "json") return DEFAULT_JSON_ACCEPT_HEADER;
+  if (format === "raw") return DEFAULT_RAW_ACCEPT_HEADER;
+  return DEFAULT_ACCEPT_HEADER;
 }
 
 function isJsonContentType(contentType: string): boolean {
@@ -862,6 +865,7 @@ function extractQualifiedAlternateLinks(
     text: ["text/plain", "text/markdown", "text/x-markdown"],
     html: ["text/html", "application/xhtml+xml"],
     json: ["application/json", "text/json"],
+    raw: [],
   };
   const accepted = acceptedTypes[format];
   const head = document.head;
@@ -1235,6 +1239,96 @@ export function createDefuddleFetch(
       }
 
       const jsonResponse = isJsonResponse(contentType, rawBody);
+
+      if (format === "raw") {
+        // Raw mode: skip Defuddle extraction, return full response body as-is.
+        // Still call Defuddle for X/Twitter URLs so the oEmbed-based
+        // deleted-tweet detection fires as a side effect.
+        const isXUrl = /^https?:\/\/(www\.)?(x\.com|twitter\.com)\//i.test(
+          opts.url,
+        );
+        if (isXUrl) {
+          let extractedContent: string | undefined;
+          const suppressedErrors: unknown[][] = [];
+          const origConsoleError = console.error;
+          console.error = (...args: unknown[]) => {
+            suppressedErrors.push(args);
+          };
+          try {
+            const extractionDocument = parseLinkedomHTML(rawBody, finalUrl);
+            const extracted = await dependencies.defuddle(
+              extractionDocument,
+              finalUrl,
+              {
+                markdown: true,
+                removeImages,
+                includeReplies,
+              },
+            );
+            extractedContent = extracted.content;
+          } finally {
+            console.error = origConsoleError;
+          }
+
+          const hasOembed404 = suppressedErrors.some((args) =>
+            args.some(
+              (arg) =>
+                typeof arg === "string" &&
+                arg.includes("oEmbed request failed: 404"),
+            ),
+          );
+          const hasJsDisabledShell = isTwitterJsDisabledPage(
+            parseLinkedomHTML(rawBody, finalUrl),
+            opts.url,
+          );
+          // Only return 404 when a signal fires AND defuddle found no content
+          if ((hasOembed404 || hasJsDisabledShell) && !extractedContent) {
+            return {
+              error: `Server returned HTTP 404 Not Found for ${opts.url}.`,
+              code: "http_error",
+              phase: "loading",
+              retryable: false,
+              timeoutMs,
+              url: opts.url,
+              finalUrl,
+              statusCode: 404,
+              statusText: "Not Found",
+              mimeType: normalizeContentType(contentType) || undefined,
+              contentLength: errorContext.contentLength,
+            };
+          }
+        }
+
+        // Only truncate if user explicitly set maxChars; otherwise return full body.
+        const effectiveContent =
+          opts.maxChars !== undefined
+            ? truncateContent(rawBody, maxChars)
+            : rawBody;
+
+        const result: FetchResult = {
+          kind: "content",
+          url: opts.url,
+          finalUrl,
+          title: "",
+          author: "",
+          published: "",
+          site: new URL(finalUrl).hostname,
+          language: "",
+          wordCount: 0,
+          content: effectiveContent,
+          browser,
+          os,
+          contentType: normalizeContentType(contentType) || undefined,
+        };
+
+        emitStatus(hooks, "done");
+        emitProgress(hooks, {
+          status: "done",
+          progress: 1,
+          phase: "raw_done",
+        });
+        return result;
+      }
 
       if (format === "json") {
         if (!jsonResponse) {

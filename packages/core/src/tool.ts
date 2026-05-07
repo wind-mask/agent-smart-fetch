@@ -87,10 +87,11 @@ export function createBaseFetchToolParameterProperties(
           Type.Literal("html"),
           Type.Literal("text"),
           Type.Literal("json"),
+          Type.Literal("raw"),
         ],
         {
           description:
-            'Output format. "markdown" (default), "html" (cleaned HTML), "text" (plain text, no formatting), or "json" (pretty-printed JSON)',
+            'Output format. "markdown" (default), "html" (cleaned HTML), "text" (plain text, no formatting), "json" (pretty-printed JSON), or "raw" (full raw server response without extraction or truncation, for further parsing)',
         },
       ),
     ),

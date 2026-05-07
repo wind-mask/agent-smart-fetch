@@ -103,7 +103,7 @@ describe("pi extension", () => {
 
     const formatVariants =
       schema.properties?.format?.anyOf?.map((variant) => variant.const) ?? [];
-    expect(formatVariants).toEqual(["markdown", "html", "text", "json"]);
+    expect(formatVariants).toEqual(["markdown", "html", "text", "json", "raw"]);
   });
 
   it("registers a batch_web_fetch tool with a requests array and verbose option", () => {

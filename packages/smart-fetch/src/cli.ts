@@ -14,7 +14,12 @@
  *   smart-fetch --version
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  createReadStream,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { isatty } from "node:tty";
@@ -28,6 +33,7 @@ import {
   defuddleFetch,
   executeBatchFetchToolCall,
   isError,
+  isFileFetchResult,
   resolveFetchToolDefaults,
 } from "smart-fetch-core";
 
@@ -69,6 +75,9 @@ OPTIONS
   --html                 Shorthand for --format html
   --json                 Shorthand for --format json
   --text                 Shorthand for --format text
+  --raw                  Shorthand for --format raw
+
+  --raw                  Shorthand for --format raw
 
   --max-chars <n>        Maximum characters to return
                          Default: 50000
@@ -97,6 +106,7 @@ OPTIONS
 EXAMPLES
   smart-fetch https://example.com
   smart-fetch https://example.com --format text --verbose
+  smart-fetch https://example.com --raw
   smart-fetch batch https://example.com https://other.com
   smart-fetch batch --file urls.txt --concurrency 4 --output ./fetched
   cat urls.txt | smart-fetch batch --stdin
@@ -150,6 +160,9 @@ function parseCliArgs(rawArgs: string[]): CliOptions {
     } else if (arg === "--text") {
       options.format = "text";
       i++;
+    } else if (arg === "--raw") {
+      options.format = "raw";
+      i++;
     } else if (arg === "--remove-images") {
       options["remove-images"] = true;
       i++;
@@ -195,7 +208,9 @@ function parseCliArgs(rawArgs: string[]): CliOptions {
   }
 
   const formatRaw = options.format as string | undefined;
-  const format = ["markdown", "html", "text", "json"].includes(formatRaw ?? "")
+  const format = ["markdown", "html", "text", "json", "raw"].includes(
+    formatRaw ?? "",
+  )
     ? (formatRaw as CliOptions["format"])
     : undefined;
 
@@ -373,6 +388,16 @@ async function runFetch(opts: CliOptions): Promise<void> {
   if (opts.output) {
     const filepath = writeResultToFile(result, 1, opts.output, opts);
     if (!piped) console.log(`Saved to ${filepath}`);
+  } else if (piped && isFileFetchResult(result)) {
+    // When piping a file download, stream the binary to stdout and metadata to stderr.
+    const metadata = buildFetchResponseText(result, { verbose: opts.verbose });
+    process.stderr.write(`${metadata}\n`);
+    const readStream = createReadStream(result.filePath);
+    readStream.pipe(process.stdout);
+    await new Promise<void>((resolve, reject) => {
+      readStream.on("end", resolve);
+      readStream.on("error", reject);
+    });
   } else {
     const output = buildFetchResponseText(result, { verbose: opts.verbose });
     console.log(output);
@@ -479,9 +504,23 @@ async function runBatch(opts: CliOptions): Promise<void> {
     for (const item of result.items) {
       if (item.status === "done" && item.result) {
         if (item.index > 0) console.log("");
-        console.log(
-          buildFetchResponseText(item.result, { verbose: opts.verbose }),
-        );
+        if (isFileFetchResult(item.result)) {
+          // Stream binary file to stdout, metadata to stderr
+          const metadata = buildFetchResponseText(item.result, {
+            verbose: opts.verbose,
+          });
+          process.stderr.write(`${metadata}\n`);
+          const readStream = createReadStream(item.result.filePath);
+          readStream.pipe(process.stdout);
+          await new Promise<void>((resolve, reject) => {
+            readStream.on("end", resolve);
+            readStream.on("error", reject);
+          });
+        } else {
+          console.log(
+            buildFetchResponseText(item.result, { verbose: opts.verbose }),
+          );
+        }
       }
     }
   } else {

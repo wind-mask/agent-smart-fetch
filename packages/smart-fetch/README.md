@@ -12,7 +12,7 @@ Smart web fetching CLI with desktop-browser TLS fingerprinting and
 - 🔁 **Client-side `<meta>` redirects** — follows sane meta refresh redirects with loop limits
 - 🔗 **Alternate content fallback** — when extraction produces no/thin content, follows qualified `<link rel="alternate" type="...">` entries in `<head>` that match the requested output format
 - ⚡ **Batch fetch** — fetch many URLs with bounded concurrency and live progress
-- 📝 **Multiple output formats** — `markdown`, `html`, `text`, `json`
+- 📝 **Multiple output formats** — `markdown`, `html`, `text`, `json`, `raw`
 - 📟 **Pipe-friendly** — auto-detects piped stdout, suppresses progress and metadata noise
 - ⚡ **Shorthand alias** — use `sf` instead of `smart-fetch`
 
@@ -89,7 +89,7 @@ sf https://example.com --format text | wc -w
 |--------|-------------|---------|
 | `--browser <name>` | Browser profile for TLS fingerprinting | `chrome_145` |
 | `--os <name>` | OS profile | `windows` |
-| `--format <fmt>` | Output format: `markdown`, `html`, `text`, `json` | `markdown` |
+| `--format <fmt>` | Output format: `markdown`, `html`, `text`, `json`, `raw` | `markdown` |
 | `--max-chars <n>` | Max characters to return | `50000` |
 | `--timeout <ms>` | Request timeout in milliseconds | `15000` |
 | `--remove-images` | Strip image references from output | off |
@@ -108,6 +108,7 @@ sf https://example.com --format text | wc -w
 | `html` | Cleaned HTML output (stripped nav, sidebars, etc.) |
 | `text` | Plain text with all formatting stripped |
 | `json` | Structured JSON for API endpoints and metadata-heavy workflows |
+| `raw` | Full raw server response (HTML/JSON/markdown/etc.) without extraction or truncation — for further parsing |
 
 ## How it works
 

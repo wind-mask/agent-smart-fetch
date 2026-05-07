@@ -1,157 +1,147 @@
-# Plan
+# Plan: Add `raw` output format
 
 ## Context
-- Add batch fetch support built in the shared core so callers can invoke something like `batch_web_fetch([...])`, where each item accepts the same request parameters as the existing single-item fetch tool.
-- The batch result needs to map each result clearly back to its input URL/item and include bot-friendly per-item error information.
-- `pi-smart-fetch` should provide a richer TUI experience for batch execution, including per-item progress rows with truncated URLs, a small loading indicator, a one-word status, and small progress bars where possible.
-- `openclaw-smart-fetch` does not need live progress detail; a simpler started/final-results behavior is likely enough.
-- README/tool docs/examples/synopsis text need to be updated across the repo.
 
-## Findings so far
-- Core today only exposes the single-item path:
-  - `packages/core/src/tool.ts` defines a single-request schema via `createBaseFetchToolParameterProperties()` and a single executor via `executeFetchToolCall()`.
-  - `packages/core/src/extract.ts` contains the actual fetch/extract pipeline (`createDefuddleFetch` / `defuddleFetch`).
-- Current result model is single-item only:
-  - `packages/core/src/types.ts` defines `FetchOptions`, `FetchResult`, `FetchError`, and `FetchToolConfig`, but no batch request/result/progress types.
-  - `packages/core/src/format.ts` renders one result into text via `buildFetchResponseText()`.
-- Adapters are thin wrappers around the shared core:
-  - `packages/pi-smart-fetch/src/index.ts` registers `web_fetch`, supports `verbose`, and has access to `onUpdate` plus pi custom render hooks.
-  - `packages/openclaw-smart-fetch/src/index.ts` registers `smart_fetch` and currently only returns a final payload; its local API/types do not expose a streaming callback the way pi does.
-- Existing config/default plumbing already has natural insertion points for batch concurrency:
-  - `packages/pi-smart-fetch/src/settings.ts` resolves pi-specific defaults from settings files; this is the right place to add something like `smartFetchDefaultBatchConcurrency` (and likely `webFetchDefaultBatchConcurrency` as a compatibility alias).
-  - `packages/pi-smart-fetch/test/unit/pi-settings.test.ts` already verifies settings precedence/validation.
-  - `packages/openclaw-smart-fetch/openclaw.plugin.json` already exposes shared defaults (`maxChars`, `timeoutMs`, etc.); it can add `batchConcurrency` with a default of `8`.
-- Existing tests and docs are organized cleanly by package:
-  - core unit/integration tests under `packages/core/test/**`
-  - pi unit tests under `packages/pi-smart-fetch/test/unit/**`
-  - OpenClaw tests under `packages/openclaw-smart-fetch/test/**`
-  - README files at root plus each package README.
-- pi supports streaming tool updates and custom `renderCall` / `renderResult` rendering; the bundled pi docs explicitly recommend handling `isPartial` in custom renderers. This looks like the right hook for the per-item batch TUI.
-- `wreq-js`'s published `RequestInit` typings expose transport/browser/session/timeout settings, but I did not find an obvious progress/status callback in its public type surface yet. Per your preference, v1 can fall back to our own coarse statuses (`queued` / `fetching` / `extracting` / `done` / `error`) if deeper inspection still does not uncover native phase callbacks.
-- For richer pi rendering, we will likely need to introduce a small custom renderer implementation in `packages/pi-smart-fetch/src/index.ts`; if that renderer uses `@mariozechner/pi-tui` primitives directly, package metadata may also need to be updated accordingly.
+Currently the tool supports four output formats: `markdown`, `html`, `text`, `json`. These all run content through Defuddle extraction (stripping nav, sidebars, ads, etc.) and apply truncation. There's no way for an agent to retrieve the full, untouched server response — e.g., the raw HTML for further parsing.
+
+We're adding a `raw` format that:
+- Uses wreq-js for TLS fingerprinting (same as other formats)
+- Uses a browser-like `Accept` header (HTML, XML, JSON, markdown, */*)
+- Returns the full, unmodified response body — no Defuddle content extraction or stripping
+- May still call Defuddle for site-specific workarounds (e.g. X/Twitter deleted-tweet detection), but ignores Defuddle's extracted content and returns raw body
+- Does not truncate by default
+- Includes `Content-Type` from the server in the metadata header block
+- Binary/attachment responses: in a TTY, streams to a temp file (same as other formats); when piping, streams raw bytes to stdout with metadata on stderr
 
 ## Approach
-- Extend the core with batch-aware request/response helpers rather than implementing batching separately in each adapter.
-- Reuse the existing single-fetch execution path for each item, so batch mode fans out over the already-tested `executeFetchToolCall` / `defuddleFetch` behavior instead of duplicating extraction logic.
-- Add batch-specific schema/types/formatting helpers in core so both adapters can share the same item result model, progress model, and final textual output.
-- Add shared `batchConcurrency` support to config/default resolution, exposed as a config/setting with a default of `8`.
-- In pi:
-  - register a new `batch_web_fetch` tool alongside `web_fetch`
-  - resolve runtime batch concurrency from pi settings
-  - stream partial updates during execution using `onUpdate`
-  - add custom renderers so the TUI can show compact per-item rows with truncated URLs, status/spinner, and per-item progress indication
-  - if `wreq-js` cannot surface low-level phases, use coarse lifecycle stages generated by our own scheduler/executor.
-- In OpenClaw:
-  - register `batch_smart_fetch`
-  - resolve bounded concurrency from plugin config
-  - skip live progress UI and return a clear final mapping of URL → result/error with full content for successful items
-- Proposed pi batch TUI format:
-  - compact header line with batch summary, for example: `batch_web_fetch 12 urls (concurrency 8)`
-  - one row per item, preserving input order
-  - row shape: `<spinner-or-check> <truncated-url> <status> <small-progress-bar>`
-  - width policy: use the render width reported by pi at draw time, and allocate about 80% of the available row width to the combined URL/progress area so truncation adapts to the actual terminal size
-  - concrete layout target:
-    - reserve a narrow fixed region for the spinner/check glyph and one-word status
-    - let the remaining width drive URL truncation and progress-bar length responsively
-    - within that responsive region, bias most space toward the URL while keeping a visible progress bar
-  - example in-flight rows:
-    - `⠋ https://example.com/article... fetching   [███░░░░░░]`
-    - `⠙ https://news.ycombinator.com/... extracting [███████░░░]`
-  - example finished rows:
-    - `✓ https://example.com/article... done       [██████████]`
-    - `✗ https://bad.example/...     error      [██████████]`
-  - status words for v1: `queued`, `fetching`, `extracting`, `done`, `error`
-  - progress mapping for v1 if `wreq-js` has no deeper callbacks:
-    - `queued` = 0%
-    - `fetching` = ~35%
-    - `extracting` = ~75%
-    - `done` / `error` = 100%
-  - expanded view can optionally show the full URL plus any per-item bot-friendly error string beneath the row.
-- Update root/package README content, examples, and pi prompt snippet/tool synopsis text to document both single and batch tools.
+
+The changes touch the full stack:
+
+1. **Type system** — extend `OutputFormat` union with `"raw"`, add optional `contentType` field to `BaseFetchResult`
+2. **Core extract pipeline** — add a `raw` branch that fetches normally, skips Defuddle content extraction, returns full raw body
+3. **Format/response builders** — include `Content-Type` in metadata headers when present
+4. **Tool schema** — add `"raw"` literal to the format union
+5. **CLI** — add `--raw` shorthand flag, accept `"raw"` in `--format`
+6. **Pi extension** — add `"raw"` literal to format union
+7. **OpenClaw extension** — add `"raw"` literal to format union
+8. **Skills & READMEs** — document the new format
+
+### Key design decisions
+
+- **Defuddle for workarounds only**: For raw mode, Defuddle is still called on X/Twitter URLs so the oEmbed-based deleted-tweet detection works. But the returned content is always the raw body, never Defuddle's extraction output.
+- **No default truncation for raw**: The `maxChars` default won't apply to raw — content is returned in full. A user can still pass `maxChars` to cap it.
+- **Content-Type in metadata**: The `contentType` from the response headers is added as an optional field on `FetchResult`, and both `buildMetadataHeader` and `buildCompactMetadataHeader` include it when present.
 
 ## Files to modify
-- `packages/core/src/tool.ts`
-- `packages/core/src/types.ts`
-- `packages/core/src/format.ts`
-- `packages/core/src/index.ts`
-- Possibly `packages/core/src/extract.ts` if batch execution/progress hooks belong near the fetch pipeline
-- Possibly a new core helper/test file for batch execution or formatting if the logic becomes too large for current files
-- `packages/core/test/unit/extract.unit.test.ts`
-- `packages/core/test/unit/format.test.ts`
-- `packages/pi-smart-fetch/src/index.ts`
-- `packages/pi-smart-fetch/src/settings.ts`
-- `packages/pi-smart-fetch/test/unit/pi-extension.test.ts`
-- `packages/pi-smart-fetch/test/unit/pi-settings.test.ts`
-- Possibly `packages/pi-smart-fetch/package.json` if the custom renderer needs an explicit TUI dependency declaration
-- `packages/openclaw-smart-fetch/src/index.ts`
-- `packages/openclaw-smart-fetch/src/types.ts` (if the plugin definition type needs batch-result details or richer tool definitions)
-- `packages/openclaw-smart-fetch/openclaw.plugin.json`
-- `packages/openclaw-smart-fetch/test/plugin.test.ts`
-- `packages/openclaw-smart-fetch/test/contract/plugin.contract.test.ts`
-- `README.md`
-- `packages/core/README.md`
-- `packages/pi-smart-fetch/README.md`
-- `packages/openclaw-smart-fetch/README.md`
+
+### Core package (`packages/core/src/`)
+
+| File | Change |
+|------|--------|
+| `types.ts` | Add `"raw"` to `OutputFormat`. Add optional `contentType?: string` to `BaseFetchResult`. |
+| `extract.ts` | Add `raw` branch in `createDefuddleFetch` — skip Defuddle extraction, return raw body. Still call Defuddle for X/Twitter workaround detection. Populate `contentType` on result. |
+| `format.ts` | Include `Content-Type` in metadata headers when `result.contentType` is present. |
+| `tool.ts` | Add `Type.Literal("raw")` to the format union. Update description. |
+
+### CLI package (`packages/smart-fetch/src/`)
+
+| File | Change |
+|------|--------|
+| `cli.ts` | Add `--raw` shorthand flag. Add `"raw"` to valid format values. Update help text. |
+
+### Pi extension (`packages/pi-smart-fetch/src/`)
+
+| File | Change |
+|------|--------|
+| `index.ts` | Add `Type.Literal("raw")` to the format union. |
+
+### OpenClaw extension (`packages/openclaw-smart-fetch/src/`)
+
+| File | Change |
+|------|--------|
+| `index.ts` | Add `Type.Literal("raw")` to the format union (via `createBaseFetchToolParameterProperties` which gets it from `tool.ts`). |
+
+### Skills & docs
+
+| File | Change |
+|------|--------|
+| `packages/openclaw-smart-fetch/skills/smart-fetch/SKILL.md` | Add `raw` format to parameter docs and explain when to use it. |
+| `packages/smart-fetch/README.md` | Add `raw` to output formats table. |
+| `packages/pi-smart-fetch/README.md` | Add `raw` to output formats table. |
+| `packages/openclaw-smart-fetch/README.md` | Add `raw` to output formats table. |
+| `README.md` (root) | Update format list if needed. |
 
 ## Reuse
-- `packages/core/src/tool.ts`
-  - `createBaseFetchToolParameterProperties()` for the per-item schema surface
-  - `executeFetchToolCall()` for the actual single-item execution logic to reuse inside batch fan-out
-- `packages/core/src/extract.ts`
-  - `defuddleFetch()` as the canonical fetch/extract implementation for each batch item
-- `packages/core/src/format.ts`
-  - `buildFetchResponseText()` as the existing single-result formatter that batch formatting can wrap/reuse per item
-  - `truncateContent()` and metadata helpers if batch summaries need compact previews
-- `packages/pi-smart-fetch/src/index.ts`
-  - existing settings/default resolution and `verbose` handling
-  - existing pi tool registration shape with `onUpdate`
-- pi extension docs in `node_modules/@mariozechner/pi-coding-agent/docs/extensions.md`
-  - confirm support for streaming partial tool results and custom `renderResult(..., { isPartial })`
+
+- **`DEFAULT_ACCEPT_HEADER`** in `constants.ts` — browser-like Accept header; for raw mode we add `application/json` explicitly into the mix so JSON endpoints also respond naturally
+- **Existing fetch pipeline** in `extract.ts` — raw mode reuses the wreq-js fetch setup, redirect handling, file download handling, and error handling
+- **`isTwitterJsDisabledPage()`** — DOM-based X/Twitter detection that works without Defuddle
+- **`buildHeader()`** in `format.ts` — already used for metadata formatting, just needs an extra `Content-Type` entry
+- **Existing schema helpers** — `createBaseFetchToolParameterProperties` in `tool.ts` already generates the format union; just need to add one more literal
+- **`resolveAcceptHeader()`** in `extract.ts` — already maps format to Accept header; raw maps to the new `DEFAULT_RAW_ACCEPT_HEADER`
+- **`streamResponseToFile()`** in `extract.ts` — reusable for the pipe case; CLI reads the temp file and streams to stdout
 
 ## Steps
-- [x] Inspect current core/adapters/tests/docs to see how single-item fetch is wired today.
-- [ ] Define shared batch types in core:
-  - per-item input shape using the same parameter surface as single fetch
-  - per-item success/error shape
-  - per-item progress/status shape for pi rendering
-  - overall batch result shape and ordering guarantees
-  - shared `batchConcurrency` config/default shape
-- [ ] Add core batch schema/execution helpers that fan out over the existing single-item executor.
-- [ ] Implement bounded-concurrency scheduling in core, with a default of `8` and adapter-supplied overrides from pi settings / OpenClaw plugin config.
-- [ ] Add core batch text formatting so final outputs clearly label each URL/item, preserve input ordering, include full successful content, and attach bot-friendly per-item errors.
-- [ ] Add `batch_web_fetch` to pi, including prompt synopsis text and runtime settings resolution.
-- [ ] Add pi partial-update + custom renderer support for the proposed per-item progress layout:
-  - compact batch header
-  - ordered per-item rows
-  - spinner/check/error glyph
-  - truncated URL column sized from the width reported by pi at render time
-  - one-word status column
-  - small ASCII/UTF progress bar
-  - use about 80% of available width for the responsive URL/progress region
-  - expanded per-item error/details view when relevant
-- [ ] Confirm whether `wreq-js` can expose finer transport phases; if not, use coarse internal statuses for pi progress.
-- [ ] Add `batch_smart_fetch` to OpenClaw with config-driven bounded concurrency and simple started/final reporting.
-- [ ] Extend unit/contract tests for new tool schemas, settings/config resolution, execution behavior, ordering, concurrency, and per-item errors.
-- [ ] Update README files and example outputs for both single and batch tools, including config docs for batch concurrency.
+
+### Step 1: Extend types
+- [ ] Add `"raw"` to `OutputFormat` union in `packages/core/src/types.ts`
+- [ ] Add optional `contentType?: string` to `BaseFetchResult` in `packages/core/src/types.ts`
+
+### Step 2: Add raw Accept header constant
+- [ ] In `packages/core/src/constants.ts`, add `DEFAULT_RAW_ACCEPT_HEADER`:
+  `"text/html,application/xhtml+xml,application/json,application/xml;q=0.9,text/markdown;q=0.8,text/plain;q=0.8,*/*;q=0.7"`
+- [ ] In `extract.ts`, use this new header when format is `"raw"`
+
+### Step 3: Implement raw logic in extract pipeline
+- [ ] In `createDefuddleFetch` (`packages/core/src/extract.ts`), after getting `rawBody` and handling client-side redirects, add a `raw` format branch that:
+  - For file downloads (binary/attachment): same as current behavior — stream to file, return `FileFetchResult` with `contentType` populated
+  - For all text responses (HTML, JSON, plain text, markdown, etc.): skip Defuddle extraction entirely, return raw body as-is
+  - Still call Defuddle for X/Twitter URLs so deleted-tweet detection works (oEmbed 404 check); return 404 error if tweet is gone, otherwise return raw body
+  - Populate `result.contentType` from response `Content-Type` header
+  - Skip default `maxChars` truncation entirely — only truncate if user explicitly passed `maxChars`
+- [ ] Ensure error handling (timeouts, HTTP errors, network errors) still works for raw mode
+
+### Step 4: Include Content-Type in metadata headers
+- [ ] In `buildMetadataHeader()` and `buildCompactMetadataHeader()` in `packages/core/src/format.ts`, add `Content-Type` line when `result.contentType` is present
+
+### Step 5: Update tool schema
+- [ ] In `createBaseFetchToolParameterProperties()` in `packages/core/src/tool.ts`, add `Type.Literal("raw")` to the format union
+- [ ] Update the format parameter description to mention `"raw"` — "raw server response without extraction or truncation (for further parsing)"
+
+### Step 6: Update CLI
+- [ ] Add `--raw` shorthand flag in `parseCliArgs()` in `packages/smart-fetch/src/cli.ts`
+- [ ] Add `"raw"` to the valid format array
+- [ ] Update help text — add `--raw` option and mention it in EXAMPLES
+- [ ] Ensure batch mode passes through `raw` format correctly
+- [ ] Handle binary/attachment in raw mode for pipe vs TTY:
+  - When piping (`isStdoutPiped()`): if the result is a `FileFetchResult`, read the temp file and stream it to stdout; write the metadata header to stderr
+  - When TTY: keep current behavior (report file path in output)
+
+### Step 7: Update Pi extension
+- [ ] No code changes needed if using shared schema helper from core (which already includes `"raw"`). Verify format literals are in sync.
+
+### Step 8: Update OpenClaw extension
+- [ ] Same as Pi — `createBaseFetchToolParameterProperties` is already used. Verify.
+
+### Step 9: Update skills and documentation
+- [ ] Update `packages/openclaw-smart-fetch/skills/smart-fetch/SKILL.md`:
+  - Add `raw` to the format parameter docs
+  - Explain: "returns the full raw server response (HTML/markdown/JSON/etc) without extraction or truncation — useful for further parsing"
+- [ ] Update `packages/smart-fetch/README.md`: add `raw` to output formats table
+- [ ] Update `packages/pi-smart-fetch/README.md`: add `raw` to output formats table
+- [ ] Update `packages/openclaw-smart-fetch/README.md`: add `raw` to output formats table
+
+### Step 10: Tests
+- [ ] Add unit test for raw format metadata (Content-Type in headers) in `packages/core/test/unit/format.test.ts`
+- [ ] Add unit test for raw format extract behavior in `packages/core/test/unit/extract.unit.test.ts`
 
 ## Verification
-- Core:
-  - run `bun run test:core`
-  - add unit coverage for mixed batch success/error cases, ordering, formatting, bounded-concurrency scheduling, and progress/status bookkeeping
-- pi:
-  - run `bun run test:pi`
-  - verify the registered schema includes `batch_web_fetch`
-  - verify pi settings resolve batch concurrency correctly and that partial updates/custom rendering can consume the batch details shape
-- OpenClaw:
-  - run `bun run test:openclaw`
-  - verify contract tests for `batch_smart_fetch`, plugin-config defaulting for `batchConcurrency`, and final response mapping
-- Repo-wide:
-  - run `bun run test`
-  - run `bun run build`
-  - smoke-check docs/examples for consistency of tool names, parameter lists, config defaults, and example outputs
 
-## Decisions captured
-- OpenClaw tool name: `batch_smart_fetch`
-- Batch execution policy: bounded concurrency, exposed as config/settings, default `8`
-- Final batch output: full content for successful items
-- pi progress fallback: use coarse internal statuses if `wreq-js` does not expose transport-phase callbacks
+1. **Build**: `bun run build` — all packages compile without errors
+2. **Type check**: `bun run typecheck` — no type errors
+3. **Unit tests**: `bun run test` — all tests pass
+4. **CLI smoke test (TTY)**: `smart-fetch https://example.com --raw` — returns full HTML with `Content-Type` in metadata header
+5. **CLI pipe test**: `smart-fetch https://example.com --raw | head -20` — raw HTML streams to stdout, metadata on stderr
+6. **CLI binary pipe test**: `smart-fetch https://example.com/image.png --raw | file -` — binary streams to stdout
+7. **Pi test**: Run `web_fetch(url, format: "raw")` in pi — agent receives raw response with Content-Type
+8. **OpenClaw test**: Run `smart_fetch(url, format: "raw")` — agent receives raw response

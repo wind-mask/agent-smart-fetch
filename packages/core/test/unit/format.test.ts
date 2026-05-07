@@ -170,6 +170,22 @@ describe("metadata formatting", () => {
     );
   });
 
+  it("buildCompactMetadataHeader includes Content-Type when present", () => {
+    const rawResult: FetchResult = {
+      ...result,
+      contentType: "text/html; charset=utf-8",
+    };
+    expect(buildCompactMetadataHeader(rawResult)).toBe(
+      [
+        "> URL: https://example.com/final",
+        "> Title: Example Article",
+        "> Author: Ada Lovelace",
+        "> Published: 2026-04-10",
+        "> Content-Type: text/html; charset=utf-8",
+      ].join("\n"),
+    );
+  });
+
   it("buildMetadataHeader includes the full metadata surface", () => {
     expect(buildMetadataHeader(result)).toBe(
       [
@@ -177,6 +193,26 @@ describe("metadata formatting", () => {
         "> Title: Example Article",
         "> Author: Ada Lovelace",
         "> Published: 2026-04-10",
+        "> Site: Example",
+        "> Language: en",
+        "> Words: 321",
+        "> Browser: chrome_145/windows",
+      ].join("\n"),
+    );
+  });
+
+  it("buildMetadataHeader includes Content-Type when present", () => {
+    const rawResult: FetchResult = {
+      ...result,
+      contentType: "text/html; charset=utf-8",
+    };
+    expect(buildMetadataHeader(rawResult)).toBe(
+      [
+        "> URL: https://example.com/final",
+        "> Title: Example Article",
+        "> Author: Ada Lovelace",
+        "> Published: 2026-04-10",
+        "> Content-Type: text/html; charset=utf-8",
         "> Site: Example",
         "> Language: en",
         "> Words: 321",

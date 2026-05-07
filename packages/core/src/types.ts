@@ -1,4 +1,4 @@
-export type OutputFormat = "markdown" | "html" | "text" | "json";
+export type OutputFormat = "markdown" | "html" | "text" | "json" | "raw";
 export type FingerprintOs = "windows" | "macos" | "linux" | "android" | "ios";
 export type IncludeRepliesOption = boolean | "extractors";
 export type BatchFetchItemStatus =
@@ -35,6 +35,7 @@ interface BaseFetchResult {
   wordCount: number;
   browser: string;
   os: string;
+  contentType?: string;
 }
 
 export interface ContentFetchResult extends BaseFetchResult {

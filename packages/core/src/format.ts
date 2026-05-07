@@ -247,6 +247,7 @@ export function buildCompactMetadataHeader(result: FetchResult): string {
     ["Title", result.title],
     ["Author", result.author],
     ["Published", result.published],
+    ["Content-Type", result.contentType],
   ]);
 }
 
@@ -266,6 +267,7 @@ export function buildMetadataHeader(result: FetchResult): string {
     ["Title", result.title],
     ["Author", result.author],
     ["Published", result.published],
+    ["Content-Type", result.contentType],
     ["Site", result.site],
     ["Language", result.language],
     ["Words", result.wordCount],

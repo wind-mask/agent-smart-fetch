@@ -11,7 +11,7 @@ Better web fetching for agents.
 - 🔁 **Client-side `<meta>` redirects** — follows sane meta refresh redirects with loop limits
 - 🔗 **Alternate content fallback** — when extraction produces no/thin content, follows qualified `<link rel="alternate" type="...">` entries in `<head>` that match the requested output format
 - ⚡ **Batch fetch** — fetch many URLs with bounded concurrency
-- 📝 **Multiple output formats** — `markdown`, `html`, `text`, `json`
+- 📝 **Multiple output formats** — `markdown`, `html`, `text`, `json`, `raw`
 
 ## [@thinkscape/smart-fetch](./packages/smart-fetch/README.md)
 

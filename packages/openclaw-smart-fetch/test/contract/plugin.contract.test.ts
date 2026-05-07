@@ -42,7 +42,7 @@ describe("plugin contract", () => {
 
     const formatVariants =
       schema.properties?.format?.anyOf?.map((variant) => variant.const) ?? [];
-    expect(formatVariants).toEqual(["markdown", "html", "text", "json"]);
+    expect(formatVariants).toEqual(["markdown", "html", "text", "json", "raw"]);
   });
 
   it("registers a batch_smart_fetch tool with a requests array of fetch items", () => {

@@ -1180,6 +1180,150 @@ describe("createDefuddleFetch", () => {
       expect(result.content).toBe("abcdefghij\n\n[... truncated]");
     }
   });
+
+  // ── raw format ──────────────────────────────────────────────────────
+
+  it("returns full raw body without defuddle extraction when format=raw", async () => {
+    const body =
+      "<html><body><main><h1>Hello</h1><p>World</p></main></body></html>";
+    const dependencies = createDependencies({
+      fetch: mock(async () => createResponse({ body })),
+    });
+    const defuddleFetch = createDefuddleFetch(dependencies);
+
+    const result = await defuddleFetch({
+      url: "https://example.com/page",
+      format: "raw",
+    });
+
+    expect(isError(result)).toBe(false);
+    expect(dependencies.defuddle).not.toHaveBeenCalled();
+    if (!isError(result)) {
+      expect(result.content).toBe(body);
+      expect(result.contentType).toBe("text/html");
+    }
+  });
+
+  it("returns raw body without truncation when format=raw and no maxChars set", async () => {
+    const body = "a".repeat(60_000);
+    const dependencies = createDependencies({
+      fetch: mock(async () => createResponse({ body })),
+    });
+    const defuddleFetch = createDefuddleFetch(dependencies);
+
+    const result = await defuddleFetch({
+      url: "https://example.com/large",
+      format: "raw",
+    });
+
+    expect(isError(result)).toBe(false);
+    if (!isError(result)) {
+      expect(result.content).toBe(body);
+      expect(result.content.length).toBe(60_000);
+    }
+  });
+
+  it("respects explicit maxChars even in raw mode", async () => {
+    const body = "abcdefghijklmnopqrstuvwxyz";
+    const dependencies = createDependencies({
+      fetch: mock(async () => createResponse({ body })),
+    });
+    const defuddleFetch = createDefuddleFetch(dependencies);
+
+    const result = await defuddleFetch({
+      url: "https://example.com/article",
+      format: "raw",
+      maxChars: 5,
+    });
+
+    expect(isError(result)).toBe(false);
+    if (!isError(result)) {
+      expect(result.content).toBe("abcde\n\n[... truncated]");
+    }
+  });
+
+  it("sends a raw-focused Accept header when format=raw", async () => {
+    const dependencies = createDependencies();
+    const defuddleFetch = createDefuddleFetch(dependencies);
+
+    await defuddleFetch({ url: "https://example.com/page", format: "raw" });
+
+    expect(dependencies.fetch).toHaveBeenCalledWith(
+      "https://example.com/page",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Accept: expect.stringContaining("application/json"),
+        }),
+      }),
+    );
+  });
+
+  it("still detects X/Twitter deleted tweets in raw mode", async () => {
+    const dependencies = createDependencies({
+      fetch: mock(async () =>
+        createResponse({
+          body: `<html><body>
+            <div>We've detected that JavaScript is disabled in this browser.
+            Please enable JavaScript or switch to a supported browser
+            to continue using x.com.</div>
+          </body></html>`,
+        }),
+      ),
+      defuddle: mock(
+        async () => ({ content: "", wordCount: 0 }) satisfies ExtractedContent,
+      ),
+    });
+    const defuddleFetch = createDefuddleFetch(dependencies);
+
+    const result = await defuddleFetch({
+      url: "https://x.com/user/status/12345",
+      format: "raw",
+    });
+
+    // Defuddle is called for the oEmbed side-effect
+    expect(dependencies.defuddle).toHaveBeenCalled();
+    expect(isError(result)).toBe(true);
+    if (isError(result)) {
+      expect(result.code).toBe("http_error");
+      expect(result.statusCode).toBe(404);
+    }
+  });
+
+  it("returns raw X/Twitter HTML when tweet exists and format=raw", async () => {
+    const body = `<html><body>
+      <div>We've detected that JavaScript is disabled in this browser.
+      Please enable JavaScript or switch to a supported browser
+      to continue using x.com.</div>
+    </body></html>`;
+    const dependencies = createDependencies({
+      fetch: mock(async () => createResponse({ body })),
+      defuddle: mock(
+        async () =>
+          ({
+            content: "**Author** @user\n\nA real tweet extracted by oEmbed.",
+            wordCount: 8,
+            title: "Post by @user",
+            author: "@user",
+            site: "X (Twitter)",
+            language: "en",
+          }) satisfies ExtractedContent,
+      ),
+    });
+    const defuddleFetch = createDefuddleFetch(dependencies);
+
+    const result = await defuddleFetch({
+      url: "https://x.com/user/status/12345",
+      format: "raw",
+    });
+
+    expect(isError(result)).toBe(false);
+    if (!isError(result)) {
+      // Returns raw HTML, not defuddle's extracted content
+      expect(result.content).toBe(body);
+      expect(result.content).not.toContain("extracted by oEmbed");
+      expect(result.contentType).toBe("text/html");
+    }
+  });
 });
 
 describe("getLatestChromeProfile", () => {

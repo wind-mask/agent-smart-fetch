@@ -17,7 +17,7 @@
     },
     "packages/core": {
       "name": "smart-fetch-core",
-      "version": "0.2.35",
+      "version": "0.3.2",
       "dependencies": {
         "@sinclair/typebox": "^0.34.49",
         "defuddle": "^0.18.1",
@@ -29,7 +29,7 @@
     },
     "packages/openclaw-smart-fetch": {
       "name": "openclaw-smart-fetch",
-      "version": "0.2.35",
+      "version": "0.3.2",
       "dependencies": {
         "@sinclair/typebox": "^0.34.49",
         "defuddle": "^0.18.1",
@@ -39,7 +39,7 @@
     },
     "packages/pi-smart-fetch": {
       "name": "pi-smart-fetch",
-      "version": "0.2.35",
+      "version": "0.3.2",
       "dependencies": {
         "@mariozechner/pi-tui": "^0.73.0",
         "@sinclair/typebox": "^0.34.49",
@@ -49,6 +49,22 @@
       },
       "peerDependencies": {
         "@mariozechner/pi-coding-agent": "*",
+      },
+    },
+    "packages/smart-fetch": {
+      "name": "@thinkscape/smart-fetch",
+      "version": "0.3.2",
+      "bin": {
+        "smart-fetch": "./dist/cli.js",
+        "sf": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@sinclair/typebox": "^0.34.49",
+        "defuddle": "^0.18.1",
+        "linkedom": "^0.18.12",
+        "lodash": "^4.18.1",
+        "mime-types": "^3.0.2",
+        "wreq-js": "^2.3.0",
       },
     },
   },
@@ -410,6 +426,8 @@
     "@smithy/util-utf8": ["@smithy/util-utf8@4.2.2", "", { "dependencies": { "@smithy/util-buffer-from": "^4.2.2", "tslib": "^2.6.2" } }, "sha512-75MeYpjdWRe8M5E3AW0O4Cx3UadweS+cwdXjwYGBW5h/gxxnbeZ877sLPX/ZJA9GVTlL/qG0dXP29JWFCD1Ayw=="],
 
     "@smithy/uuid": ["@smithy/uuid@1.1.2", "", { "dependencies": { "tslib": "^2.6.2" } }, "sha512-O/IEdcCUKkubz60tFbGA7ceITTAJsty+lBjNoorP4Z6XRqaFb/OjQjZODophEcuq68nKm6/0r+6/lLQ+XVpk8g=="],
+
+    "@thinkscape/smart-fetch": ["@thinkscape/smart-fetch@workspace:packages/smart-fetch"],
 
     "@tokenizer/inflate": ["@tokenizer/inflate@0.4.1", "", { "dependencies": { "debug": "^4.4.3", "token-types": "^6.1.1" } }, "sha512-2mAv+8pkG6GIZiF1kNg1jAjh27IDxEPKwdGul3snfztFerfPGI1LjDezZp3i7BElXompqEtPmoPx6c2wgtWsOA=="],
 

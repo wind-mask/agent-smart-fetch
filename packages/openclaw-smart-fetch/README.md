@@ -11,7 +11,7 @@
 - 🔁 **Client-side `<meta>` redirects** — follows sane meta refresh redirects with loop limits
 - 🔗 **Alternate content fallback** — when extraction produces no/thin content, follows qualified `<link rel="alternate" type="...">` entries in `<head>` that match the requested output format
 - ⚡ **Batch fetch** — fetch many URLs with bounded concurrency
-- 📝 **Multiple output formats** — `markdown`, `html`, `text`, `json`
+- 📝 **Multiple output formats** — `markdown`, `html`, `text`, `json`, `raw`
 - 🔄 **Built-in `web_fetch` fallback** — automatically improves the core web_fetch tool
 - 📖 **Bundled skill** — agents get usage guidance injected into their system prompt
 
@@ -139,6 +139,7 @@ Skills are declared in the manifest (`openclaw.plugin.json`) under `"skills":
 | `html` | Cleaned HTML output |
 | `text` | Plain text with markdown stripped |
 | `json` | Structured JSON for metadata-heavy workflows |
+| `raw` | Full raw server response without extraction or truncation — for further parsing |
 
 ## Plugin config
 
