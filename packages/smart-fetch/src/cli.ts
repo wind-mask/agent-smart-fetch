@@ -5,11 +5,10 @@
  * content extraction via Defuddle.
  *
  * Usage:
- *   smart-fetch <url> [options]
- *   smart-fetch fetch <url> [options]
- *   smart-fetch batch <urls...> [options]
- *   smart-fetch batch --file <path> [options]
- *   smart-fetch batch --stdin [options]
+ *   smart-fetch [options] <url>             Fetch a single URL
+ *   smart-fetch [options] <url> <url> ...   Fetch multiple URLs (batch)
+ *   smart-fetch [options] --file <path>     Read URLs from a file (batch)
+ *   smart-fetch [options] --stdin           Read URLs from stdin (batch)
  *   smart-fetch --help
  *   smart-fetch --version
  */
@@ -50,13 +49,12 @@ function isStdoutPiped(): boolean {
 const HELP = `smart-fetch - Fetch web pages with desktop-browser TLS fingerprinting.
 
 USAGE
-  smart-fetch <url> [options]              Fetch a single URL
-  smart-fetch fetch <url> [options]        Same as above (explicit subcommand)
-  smart-fetch batch <urls...> [options]    Fetch multiple URLs
-  smart-fetch batch --file <path>          Read URLs from a file (one per line)
-  smart-fetch batch --stdin                Read URLs from stdin
-  smart-fetch --help                       Show this help
-  smart-fetch --version                    Show version
+  smart-fetch [options] <url>             Fetch a single URL
+  smart-fetch [options] <url> <url> ...   Fetch multiple URLs (batch)
+  smart-fetch [options] --file <path>     Read URLs from a file (batch)
+  smart-fetch [options] --stdin           Read URLs from stdin (batch)
+  smart-fetch --help                      Show this help
+  smart-fetch --version                   Show version
 
 OPTIONS
   --browser <name>       Browser profile for TLS fingerprinting
@@ -75,8 +73,6 @@ OPTIONS
   --html                 Shorthand for --format html
   --json                 Shorthand for --format json
   --text                 Shorthand for --format text
-  --raw                  Shorthand for --format raw
-
   --raw                  Shorthand for --format raw
 
   --max-chars <n>        Maximum characters to return
@@ -107,9 +103,9 @@ EXAMPLES
   smart-fetch https://example.com
   smart-fetch https://example.com --format text --verbose
   smart-fetch https://example.com --raw
-  smart-fetch batch https://example.com https://other.com
-  smart-fetch batch --file urls.txt --concurrency 4 --output ./fetched
-  cat urls.txt | smart-fetch batch --stdin
+  smart-fetch https://example.com https://other.com
+  smart-fetch --file urls.txt --concurrency 4 --output ./fetched
+  cat urls.txt | smart-fetch --stdin
 `;
 
 // ─── Argument parsing ───────────────────────────────────────────────────────
@@ -117,11 +113,10 @@ EXAMPLES
 interface CliOptions {
   help: boolean;
   version: boolean;
-  subcommand: "fetch" | "batch" | null;
   urls: string[];
   browser?: string;
   os?: string;
-  format?: "markdown" | "html" | "text" | "json";
+  format?: "markdown" | "html" | "text" | "json" | "raw";
   maxChars?: number;
   timeout?: number;
   removeImages: boolean;
@@ -189,22 +184,15 @@ function parseCliArgs(rawArgs: string[]): CliOptions {
     }
   }
 
-  let subcommand: CliOptions["subcommand"] = null;
   let urls = positionals;
 
-  if (positionals.length > 0) {
-    const first = positionals[0];
-    if (first === "fetch" || first === "batch") {
-      subcommand = first;
-      urls = positionals.slice(1);
-    } else if (first === "help") {
-      options.help = true;
-    }
-  }
-
-  // If no explicit subcommand and no help/version flag, default to fetch mode
-  if (!subcommand && !options.help && !options.version && urls.length > 0) {
-    subcommand = "fetch";
+  // Filter out legacy subcommands if accidentally provided
+  if (
+    urls.length > 0 &&
+    (urls[0] === "fetch" || urls[0] === "batch" || urls[0] === "help")
+  ) {
+    if (urls[0] === "help") options.help = true;
+    urls = urls.slice(1);
   }
 
   const formatRaw = options.format as string | undefined;
@@ -224,7 +212,6 @@ function parseCliArgs(rawArgs: string[]): CliOptions {
   return {
     help: options.help === true,
     version: options.version === true,
-    subcommand,
     urls: urls.filter((u) => u.length > 0),
     browser: options.browser as string | undefined,
     os: options.os as string | undefined,
@@ -297,6 +284,16 @@ function resolveFetchToolConfig(cliOpts: CliOptions): FetchToolConfig {
 
 // ─── Output helpers ─────────────────────────────────────────────────────────
 
+function buildMetadataForPipe(result: FetchResult): string {
+  // Only emit Content-Type + URL when in raw mode.
+  const lines: string[] = [];
+  if (result.contentType) {
+    lines.push(`> Content-Type: ${result.contentType}`);
+  }
+  lines.push(`> URL: ${result.finalUrl}`);
+  return lines.join("\n");
+}
+
 function slugify(url: string): string {
   try {
     const { hostname, pathname } = new URL(url);
@@ -358,6 +355,7 @@ function formatProgress(snapshot: BatchFetchProgressSnapshot): string {
 
 async function runFetch(opts: CliOptions): Promise<void> {
   const piped = isStdoutPiped();
+  const isRaw = opts.format === "raw";
 
   if (opts.urls.length === 0) {
     console.error("Error: No URL provided. Use --help for usage.");
@@ -368,12 +366,19 @@ async function runFetch(opts: CliOptions): Promise<void> {
   const config = resolveFetchToolConfig(opts);
   const defaults = resolveFetchToolDefaults(config);
 
+  // For raw mode, don't apply default maxChars — only truncate if user
+  // explicitly passed --max-chars.
+  const effectiveMaxChars =
+    isRaw && opts.maxChars === undefined
+      ? undefined
+      : (opts.maxChars ?? defaults.maxChars);
+
   const result = await defuddleFetch({
     url,
     browser: defaults.browser,
     os: defaults.os,
     format: opts.format ?? "markdown",
-    maxChars: defaults.maxChars,
+    maxChars: effectiveMaxChars,
     timeoutMs: defaults.timeoutMs,
     removeImages: defaults.removeImages || opts.removeImages,
     includeReplies: defaults.includeReplies,
@@ -388,16 +393,28 @@ async function runFetch(opts: CliOptions): Promise<void> {
   if (opts.output) {
     const filepath = writeResultToFile(result, 1, opts.output, opts);
     if (!piped) console.log(`Saved to ${filepath}`);
-  } else if (piped && isFileFetchResult(result)) {
-    // When piping a file download, stream the binary to stdout and metadata to stderr.
-    const metadata = buildFetchResponseText(result, { verbose: opts.verbose });
-    process.stderr.write(`${metadata}\n`);
-    const readStream = createReadStream(result.filePath);
-    readStream.pipe(process.stdout);
-    await new Promise<void>((resolve, reject) => {
-      readStream.on("end", resolve);
-      readStream.on("error", reject);
-    });
+  } else if (piped) {
+    // When piping, stream content to stdout and metadata to stderr.
+    if (isFileFetchResult(result)) {
+      const metadata = buildFetchResponseText(result, {
+        verbose: opts.verbose,
+      });
+      process.stderr.write(`${metadata}\n`);
+      const readStream = createReadStream(result.filePath);
+      readStream.pipe(process.stdout);
+      await new Promise<void>((resolve, reject) => {
+        readStream.on("end", resolve);
+        readStream.on("error", reject);
+      });
+    } else if (isRaw) {
+      // Raw mode: metadata to stderr, raw body to stdout.
+      const metadata = buildMetadataForPipe(result);
+      if (metadata) process.stderr.write(`${metadata}\n`);
+      process.stdout.write(result.content);
+    } else {
+      const output = buildFetchResponseText(result, { verbose: opts.verbose });
+      console.log(output);
+    }
   } else {
     const output = buildFetchResponseText(result, { verbose: opts.verbose });
     console.log(output);
@@ -500,27 +517,31 @@ async function runBatch(opts: CliOptions): Promise<void> {
       }
     }
   } else if (piped) {
-    // Piped stdout: emit raw content only, no headers or separators
+    // Piped stdout: content to stdout, metadata to stderr.
     for (const item of result.items) {
-      if (item.status === "done" && item.result) {
-        if (item.index > 0) console.log("");
-        if (isFileFetchResult(item.result)) {
-          // Stream binary file to stdout, metadata to stderr
-          const metadata = buildFetchResponseText(item.result, {
-            verbose: opts.verbose,
-          });
-          process.stderr.write(`${metadata}\n`);
-          const readStream = createReadStream(item.result.filePath);
-          readStream.pipe(process.stdout);
-          await new Promise<void>((resolve, reject) => {
-            readStream.on("end", resolve);
-            readStream.on("error", reject);
-          });
-        } else {
-          console.log(
-            buildFetchResponseText(item.result, { verbose: opts.verbose }),
-          );
-        }
+      if (item.status !== "done" || !item.result) continue;
+      if (item.index > 0) process.stdout.write("\n");
+      if (isFileFetchResult(item.result)) {
+        // Stream binary file to stdout, metadata to stderr.
+        const metadata = buildFetchResponseText(item.result, {
+          verbose: opts.verbose,
+        });
+        process.stderr.write(`${metadata}\n`);
+        const readStream = createReadStream(item.result.filePath);
+        readStream.pipe(process.stdout);
+        await new Promise<void>((resolve, reject) => {
+          readStream.on("end", resolve);
+          readStream.on("error", reject);
+        });
+      } else if (opts.format === "raw") {
+        // Raw mode: metadata to stderr, raw body to stdout.
+        const metadata = buildMetadataForPipe(item.result);
+        if (metadata) process.stderr.write(`${metadata}\n`);
+        process.stdout.write(item.result.content);
+      } else {
+        console.log(
+          buildFetchResponseText(item.result, { verbose: opts.verbose }),
+        );
       }
     }
   } else {
@@ -563,7 +584,6 @@ async function main(): Promise<void> {
   }
 
   if (opts.version) {
-    // Read version from package.json relative to this file
     try {
       const pkg = JSON.parse(
         readFileSync(new URL("../package.json", import.meta.url), "utf-8"),
@@ -575,24 +595,27 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  if (opts.subcommand === "fetch") {
-    await runFetch(opts);
-    return;
-  }
+  // Determine mode: 1 positional URL → single fetch, multiple → batch.
+  // --file and --stdin always trigger batch mode.
+  const isBatch = opts.file !== undefined || opts.stdin || opts.urls.length > 1;
 
-  if (opts.subcommand === "batch") {
+  if (isBatch) {
     await runBatch(opts);
     return;
   }
 
-  // No subcommand and no URLs — show help
+  if (opts.urls.length === 1) {
+    await runFetch(opts);
+    return;
+  }
+
+  // No URLs provided.
   if (rawArgs.length === 0) {
     console.log(HELP);
     process.exit(0);
   }
 
-  // No subcommand and no URLs
-  console.error("Error: No command specified. Use --help for usage.");
+  console.error("Error: No URL provided. Use --help for usage.");
   process.exit(1);
 }
 
