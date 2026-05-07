@@ -66,6 +66,10 @@ OPTIONS
                          Default: markdown
                          Options: markdown, html, text, json
 
+  --html                 Shorthand for --format html
+  --json                 Shorthand for --format json
+  --text                 Shorthand for --format text
+
   --max-chars <n>        Maximum characters to return
                          Default: 50000
 
@@ -136,6 +140,15 @@ function parseCliArgs(rawArgs: string[]): CliOptions {
       i++;
     } else if (arg === "--verbose") {
       options.verbose = true;
+      i++;
+    } else if (arg === "--html") {
+      options.format = "html";
+      i++;
+    } else if (arg === "--json") {
+      options.format = "json";
+      i++;
+    } else if (arg === "--text") {
+      options.format = "text";
       i++;
     } else if (arg === "--remove-images") {
       options["remove-images"] = true;
@@ -531,6 +544,12 @@ async function main(): Promise<void> {
   if (opts.subcommand === "batch") {
     await runBatch(opts);
     return;
+  }
+
+  // No subcommand and no URLs — show help
+  if (rawArgs.length === 0) {
+    console.log(HELP);
+    process.exit(0);
   }
 
   // No subcommand and no URLs
