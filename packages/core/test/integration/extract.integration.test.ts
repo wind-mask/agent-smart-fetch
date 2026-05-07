@@ -112,6 +112,7 @@ describeIf("integration: extraction pipeline", () => {
         url: TEST_URLS.rfc9110Text,
         format: "text",
         maxChars: 2000,
+        browser: "firefox_147",
       });
 
       expect(isError(result)).toBe(false);
@@ -131,6 +132,7 @@ describeIf("integration: extraction pipeline", () => {
         url: TEST_URLS.rfc9110Text,
         format: "html",
         maxChars: 1000,
+        browser: "firefox_147",
       });
 
       expect(isError(result)).toBe(false);
