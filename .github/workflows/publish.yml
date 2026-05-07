@@ -18,6 +18,7 @@ on:
           - all
           - pi
           - openclaw
+          - cli
       dry_run:
         description: "Dry run only"
         required: true
@@ -67,6 +68,7 @@ jobs:
           test "$(node -p "require('./packages/pi-smart-fetch/package.json').version")" = "$TAG_VERSION"
           test "$(node -p "require('./packages/openclaw-smart-fetch/package.json').version")" = "$TAG_VERSION"
           test "$(node -p "require('./packages/openclaw-smart-fetch/openclaw.plugin.json').version")" = "$TAG_VERSION"
+          test "$(node -p "require('./packages/smart-fetch/package.json').version")" = "$TAG_VERSION"
 
       - name: Verify workspace
         run: bun run check
@@ -95,6 +97,7 @@ jobs:
           if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
             publish_cmd packages/pi-smart-fetch
             publish_cmd packages/openclaw-smart-fetch
+            publish_cmd packages/smart-fetch
             exit 0
           fi
 
@@ -102,12 +105,16 @@ jobs:
             all)
               publish_cmd packages/pi-smart-fetch
               publish_cmd packages/openclaw-smart-fetch
+              publish_cmd packages/smart-fetch
               ;;
             pi)
               publish_cmd packages/pi-smart-fetch
               ;;
             openclaw)
               publish_cmd packages/openclaw-smart-fetch
+              ;;
+            cli)
+              publish_cmd packages/smart-fetch
               ;;
             *)
               echo "Unknown package selection: $SELECTED_PACKAGE" >&2
