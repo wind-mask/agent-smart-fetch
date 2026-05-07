@@ -1,7 +1,7 @@
 {
   "name": "smart-fetch-core",
   "private": true,
-  "version": "0.3.4",
+  "version": "0.3.5",
   "type": "module",
   "description": "Internal shared smart fetch core used by the pi and OpenClaw adapters.",
   "license": "MIT",

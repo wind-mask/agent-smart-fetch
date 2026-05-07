@@ -37,6 +37,7 @@ import { getLatestChromeProfile as getLatestChromeProfileFrom } from "./profiles
 import type {
   FetchDependencies,
   FetchError,
+  FetchErrorPhase,
   FetchExecutionHooks,
   FetchOptions,
   FetchProgressUpdate,
@@ -661,6 +662,35 @@ function isTimeoutError(error: unknown): boolean {
   return /timed out|timeout|deadline exceeded|abort(?:ed)?/i.test(message);
 }
 
+function isDnsError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /dns error|failed to lookup address|nodename nor servname provided|name resolution failed/i.test(
+    message,
+  );
+}
+
+function isConnectError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /client error \(connect\)|connection refused|tcp connect error|connection reset|network unreachable|no route to host/i.test(
+    message,
+  );
+}
+
+function isTlsError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /ssl.*error|tls.*error|bad certificate|certificate.*invalid|unknown.*issuer/i.test(
+    message,
+  );
+}
+
+function extractHostname(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+}
+
 function buildTimeoutError(context: FetchErrorContext): FetchError {
   const targetUrl = context.finalUrl ?? context.url;
   const timeoutLabel = `${context.timeoutMs}ms`;
@@ -750,30 +780,73 @@ function buildThrownFetchError(
     return buildTimeoutError(context);
   }
 
+  const hostname = extractHostname(context.url);
+
+  if (isDnsError(error)) {
+    return {
+      error: `DNS error: failed to lookup address for ${hostname}. Check the URL and try again.`,
+      code: "network_error",
+      phase: "connecting",
+      retryable: false,
+      url: context.url,
+      finalUrl: context.finalUrl,
+    };
+  }
+
+  if (isConnectError(error)) {
+    return {
+      error: `Connection failed to ${hostname}. The server may be unreachable or blocking requests.`,
+      code: "network_error",
+      phase: "connecting",
+      retryable: true,
+      url: context.url,
+      finalUrl: context.finalUrl,
+    };
+  }
+
+  if (isTlsError(error)) {
+    return {
+      error: `TLS/SSL error connecting to ${hostname}. The server's certificate may be invalid.`,
+      code: "network_error",
+      phase: "connecting",
+      retryable: false,
+      url: context.url,
+      finalUrl: context.finalUrl,
+    };
+  }
+
+  // For remaining errors, determine the actual phase.
+  // If it's a connect-level error but phase was misattributed, correct it.
+  const isConnectLevel =
+    isDnsError(error) || isConnectError(error) || isTlsError(error);
+  const effectivePhase: FetchErrorPhase = isConnectLevel
+    ? "connecting"
+    : context.phase;
+
   const message = error instanceof Error ? error.message : String(error);
   const targetUrl = context.finalUrl ?? context.url;
   const phaseDescription =
-    context.phase === "loading"
+    effectivePhase === "loading"
       ? "downloading the response"
-      : context.phase === "waiting"
+      : effectivePhase === "waiting"
         ? "waiting for the server response"
-        : context.phase === "connecting"
+        : effectivePhase === "connecting"
           ? "connecting"
           : "fetching";
 
   return {
     error:
-      context.phase === "processing"
+      effectivePhase === "processing"
         ? `Failed while processing the response from ${targetUrl}: ${message}`
         : `Request failed while ${phaseDescription} for ${targetUrl}: ${message}`,
     code:
-      context.phase === "processing"
+      effectivePhase === "processing"
         ? "processing_error"
-        : context.phase === "loading" && context.mimeType
+        : effectivePhase === "loading" && context.mimeType
           ? "download_error"
           : "network_error",
-    phase: context.phase,
-    retryable: context.phase !== "processing",
+    phase: effectivePhase,
+    retryable: effectivePhase !== "processing",
     timeoutMs: context.timeoutMs,
     url: context.url,
     finalUrl: context.finalUrl,

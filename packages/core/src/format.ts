@@ -134,8 +134,20 @@ export function buildUserFacingFetchErrorSummary(error: FetchError): string {
       return "No readable content could be extracted from the page.";
     case "processing_error":
       return "The response could not be processed.";
-    case "network_error":
+    case "network_error": {
+      if (/dns error/i.test(error.error)) {
+        return "DNS error — could not resolve the hostname.";
+      }
+      if (
+        /connection failed|connection refused|unreachable/i.test(error.error)
+      ) {
+        return "Connection failed — the server is unreachable.";
+      }
+      if (/tls|ssl/i.test(error.error)) {
+        return "TLS/SSL error — certificate may be invalid.";
+      }
       return "The request failed before a usable response was returned.";
+    }
     default:
       return error.error;
   }
@@ -144,41 +156,49 @@ export function buildUserFacingFetchErrorSummary(error: FetchError): string {
 export function buildFetchErrorResponseText(error: FetchError): string {
   const lines = [`Error: ${error.error}`];
 
-  const metadata = buildHeader([
-    ["URL", error.url],
-    ["Final URL", error.finalUrl],
-    ["Phase", error.phase ? describeErrorPhase(error.phase) : undefined],
-    [
-      "Timeout",
-      error.timeoutMs ? formatDurationMs(error.timeoutMs) : undefined,
-    ],
-    [
-      "HTTP status",
-      error.statusCode
-        ? `${error.statusCode}${error.statusText ? ` ${error.statusText}` : ""}`
-        : undefined,
-    ],
-    ["Mime type", error.mimeType],
-    [
-      "Content-Length",
-      error.contentLength !== undefined
-        ? `${error.contentLength} bytes (${formatByteCount(error.contentLength)})`
-        : undefined,
-    ],
-    [
-      "Downloaded before failure",
-      error.downloadedBytes !== undefined
-        ? `${error.downloadedBytes} bytes (${formatByteCount(error.downloadedBytes)})`
-        : undefined,
-    ],
-    [
-      "Suggested timeoutMs",
-      error.code === "timeout" ? suggestRetryTimeoutMs(error) : undefined,
-    ],
-  ]);
+  // Only show metadata for error types where it's genuinely helpful.
+  // For network-level errors (DNS, connection, TLS), the metadata is misleading.
+  if (
+    error.code === "timeout" ||
+    error.code === "http_error" ||
+    error.code === "download_error"
+  ) {
+    const metadata = buildHeader([
+      ["URL", error.url],
+      ["Final URL", error.finalUrl],
+      ["Phase", error.phase ? describeErrorPhase(error.phase) : undefined],
+      [
+        "Timeout",
+        error.timeoutMs ? formatDurationMs(error.timeoutMs) : undefined,
+      ],
+      [
+        "HTTP status",
+        error.statusCode
+          ? `${error.statusCode}${error.statusText ? ` ${error.statusText}` : ""}`
+          : undefined,
+      ],
+      ["Mime type", error.mimeType],
+      [
+        "Content-Length",
+        error.contentLength !== undefined
+          ? `${error.contentLength} bytes (${formatByteCount(error.contentLength)})`
+          : undefined,
+      ],
+      [
+        "Downloaded before failure",
+        error.downloadedBytes !== undefined
+          ? `${error.downloadedBytes} bytes (${formatByteCount(error.downloadedBytes)})`
+          : undefined,
+      ],
+      [
+        "Suggested timeoutMs",
+        error.code === "timeout" ? suggestRetryTimeoutMs(error) : undefined,
+      ],
+    ]);
 
-  if (metadata) {
-    lines.push("", metadata);
+    if (metadata) {
+      lines.push("", metadata);
+    }
   }
 
   if (error.code === "timeout") {
