@@ -17,35 +17,35 @@
     },
     "packages/core": {
       "name": "smart-fetch-core",
-      "version": "0.3.2",
+      "version": "0.3.5",
       "dependencies": {
         "@sinclair/typebox": "^0.34.49",
         "defuddle": "^0.18.1",
         "linkedom": "^0.18.12",
         "lodash": "^4.18.1",
         "mime-types": "^3.0.2",
-        "wreq-js": "^2.3.0",
+        "wreq-js": "^2.3.1",
       },
     },
     "packages/openclaw-smart-fetch": {
       "name": "openclaw-smart-fetch",
-      "version": "0.3.2",
+      "version": "0.3.5",
       "dependencies": {
         "@sinclair/typebox": "^0.34.49",
         "defuddle": "^0.18.1",
         "linkedom": "^0.18.12",
-        "wreq-js": "^2.3.0",
+        "wreq-js": "^2.3.1",
       },
     },
     "packages/pi-smart-fetch": {
       "name": "pi-smart-fetch",
-      "version": "0.3.2",
+      "version": "0.3.5",
       "dependencies": {
         "@mariozechner/pi-tui": "^0.73.0",
         "@sinclair/typebox": "^0.34.49",
         "defuddle": "^0.18.1",
         "linkedom": "^0.18.12",
-        "wreq-js": "^2.3.0",
+        "wreq-js": "^2.3.1",
       },
       "peerDependencies": {
         "@mariozechner/pi-coding-agent": "*",
@@ -53,7 +53,7 @@
     },
     "packages/smart-fetch": {
       "name": "@thinkscape/smart-fetch",
-      "version": "0.3.2",
+      "version": "0.3.5",
       "bin": {
         "smart-fetch": "./dist/cli.js",
         "sf": "./dist/cli.js",
@@ -64,7 +64,7 @@
         "linkedom": "^0.18.12",
         "lodash": "^4.18.1",
         "mime-types": "^3.0.2",
-        "wreq-js": "^2.3.0",
+        "wreq-js": "^2.3.1",
       },
     },
   },
@@ -801,7 +801,7 @@
 
     "wrappy": ["wrappy@1.0.2", "", {}, "sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ=="],
 
-    "wreq-js": ["wreq-js@2.3.0", "", { "os": [ "linux", "win32", "darwin", ], "cpu": [ "x64", "arm64", ] }, "sha512-jROBpTUhVH40qG+cAvBhdduKPGDSx55jK1dIDmVuu29sux9i8KY0u0wb5tHkMzXKDy9hrfHP+bpvaSq25rGwEA=="],
+    "wreq-js": ["wreq-js@2.3.1", "", { "os": [ "linux", "win32", "darwin", ], "cpu": [ "x64", "arm64", ] }, "sha512-vaKasaKeskrDKEuuO5Q5uamEG9a6FrF5ZSicH7TCvYS4RxF7/gzaU/vYqwJzcs+uydyJPVWY1KCvfVCgp0tiGA=="],
 
     "ws": ["ws@8.20.0", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-sAt8BhgNbzCtgGbt2OxmpuryO63ZoDk/sqaB/znQm94T4fCEsy/yV+7CdC1kJhOU9lboAEU7R3kquuycDoibVA=="],
 
