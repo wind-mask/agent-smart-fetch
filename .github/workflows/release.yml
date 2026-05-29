@@ -53,7 +53,9 @@ jobs:
 
       - name: Get release version
         id: version
-        run: echo "version=$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Push release commit and tag
         run: git push origin main --follow-tags
