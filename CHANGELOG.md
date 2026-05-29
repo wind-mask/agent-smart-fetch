@@ -1,3 +1,7 @@
 # Changelog
 
+## v0.3.7 - 2026-05-29
+
+- **patch**: chore(deps): update dev dependencies
+
 Release notes are generated from `.changeset/*.md` files when PRs are merged to `main`.
