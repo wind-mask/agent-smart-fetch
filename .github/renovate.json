@@ -1,0 +1,37 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommits"],
+  "enabledManagers": ["bun", "github-actions"],
+  "dependencyDashboard": false,
+  "schedule": ["every weekend"],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "automerge": false,
+  "labels": ["dependencies"],
+  "rangeStrategy": "bump",
+  "rebaseWhen": "behind-base-branch",
+  "separateMajorMinor": true,
+  "separateMultipleMajor": true,
+  "packageRules": [
+    {
+      "description": "Group non-major dev dependency updates",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "dev dependencies"
+    },
+    {
+      "description": "Major updates require explicit review",
+      "matchUpdateTypes": ["major"],
+      "labels": ["dependencies", "breaking"]
+    },
+    {
+      "description": "Do not propose TypeScript 7 until explicitly enabled",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<7.0.0"
+    }
+  ],
+  "prBodyNotes": [
+    "This repo releases a patch version by default after merge.",
+    "To release a minor or major version instead, add a `.changeset/*.md` file with `minor` or `major` on the first line."
+  ]
+}

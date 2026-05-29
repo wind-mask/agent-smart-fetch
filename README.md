@@ -88,7 +88,20 @@ bun run hooks:install
 
 Versioning is global across the monorepo.
 
-Bump all package versions together:
+Every merged PR to `main` is released automatically. The default release type is
+`patch`. To request a `minor` or `major` release, add a `.changeset/*.md` file to
+the PR:
+
+```md
+minor
+
+Add batch request timeout controls.
+```
+
+Dependency update PRs are opened by Renovate. They also release as `patch` by
+default unless a changeset overrides the bump level.
+
+Bump all package versions together manually:
 
 ```bash
 bun run version:patch
@@ -96,7 +109,7 @@ bun run version:minor
 bun run version:major
 ```
 
-Create a release commit and tag:
+Create a local release commit and tag from changesets:
 
 ```bash
 bun run release

@@ -1,0 +1,68 @@
+name: Release
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump override"
+        required: false
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+        default: auto
+
+jobs:
+  release:
+    if: "${{ github.event_name == 'workflow_dispatch' || (!startsWith(github.event.head_commit.message, 'chore: release v') && !contains(github.event.head_commit.message, '[skip release]')) }}"
+    runs-on: macos-14
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run integration tests
+        run: bun run test:integration
+
+      - name: Configure git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Release version commit and tag
+        run: bun run scripts/release.ts ${{ github.event.inputs.bump || 'auto' }}
+
+      - name: Get release version
+        id: version
+        run: echo "version=$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
+
+      - name: Push release commit and tag
+        run: git push origin main --follow-tags
+
+      - name: Dispatch publish workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run publish.yml \
+            --ref "v${{ steps.version.outputs.version }}" \
+            -f package=all \
+            -f dry_run=false
