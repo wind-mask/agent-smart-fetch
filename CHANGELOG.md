@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.8 - 2026-05-29
+
+- **patch**: fix(deps): update dependency @mariozechner/pi-tui to ^0.73.1
+
 ## v0.3.7 - 2026-05-29
 
 - **patch**: chore(deps): update dev dependencies
