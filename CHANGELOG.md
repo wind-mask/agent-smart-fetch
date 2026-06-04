@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.10 - 2026-06-04
+
+- **patch**: chore(deps): update dependency node (#10)
+
 ## v0.3.9 - 2026-05-29
 
 - **patch**: Switch pi integration dependencies from the deprecated `@mariozechner/*` scope to `@earendil-works/*`.
