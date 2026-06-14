@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.12 - 2026-06-14
+
+- **patch**: chore(deps): update dev dependencies (#11)
+
 ## v0.3.11 - 2026-06-04
 
 - **patch**: chore(deps): update dev dependencies to ^0.78.0 (#9)
